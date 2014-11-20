@@ -39,7 +39,7 @@
 //! }
 //!
 //! fn main() {
-//!     match divide_some_numbers([1, 2, 3, 4].as_slice(), 3) {
+//!     match divide_some_numbers(&[1, 2, 3, 4].as_slice(), 3) {
 //!         Ok(results) => println!("results: {}", results),
 //!         Err(incident) => {
 //!             incident.print_traceback();
@@ -657,12 +657,16 @@ pub trait FailureConverter<A> {
 }
 
 impl<E: ConstructIncident> FailureConverter<E> for Incident {
+    #[cold]
+    #[inline(never)]
     fn convert_failure(args: E, loc: Option<LocationInfo>) -> Incident {
         ConstructIncident::construct_incident(args, loc)
     }
 }
 
 impl<E: Error> FailureConverter<(E,)> for E {
+    #[cold]
+    #[inline(never)]
     fn convert_failure((err,): (E,), _: Option<LocationInfo>) -> E {
         err
     }
