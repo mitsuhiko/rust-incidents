@@ -776,7 +776,7 @@ macro_rules! __error_location {
             Some(::incidents::LocationInfo {
                 file: ::std::path::Path::new(file!()),
                 line: line!(),
-                column: col!(),
+                column: column!(),
             })
         }
     })
