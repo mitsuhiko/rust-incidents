@@ -1,155 +1,3 @@
-//! rust-incidents is a generic error handling system for rust.
-//!
-//! # What does it do?
-//!
-//! This library explores the concept of explicit error bubbling in Rust.
-//!
-//! It is based on the concept of "incidents".  An incident is the chain events
-//! that occurr as a result of failing with an error.  Roughly speaking an
-//! incident is somewhat similar to a traceback in programming languages with
-//! exceptions.
-//!
-//! In a nutshell:
-//!
-//! ```rust
-//! #![feature(phase)]
-//! #[phase(plugin, link)]
-//! extern crate incidents;
-//! use incidents::{Error, IResult};
-//!
-//! struct DivisionByZero;
-//!
-//! impl Error for DivisionByZero {
-//!     fn name(&self) -> &str { "Division by zero" }
-//! }
-//!
-//! fn divide_something(a: int, b: int) -> IResult<int> {
-//!     if b == 0 {
-//!         fail!(DivisionByZero, "cannot divide by zero");
-//!     }
-//!     Ok(a / b)
-//! }
-//!
-//! fn divide_some_numbers(nums: &[int], divisor: int) -> IResult<Vec<int>> {
-//!     let mut rv = vec![];
-//!     for num in nums.iter() {
-//!         rv.push(try!(divide_something(*num, divisor)));
-//!     }
-//!     Ok(rv)
-//! }
-//!
-//! fn main() {
-//!     match divide_some_numbers(&[1, 2, 3, 4].as_slice(), 3) {
-//!         Ok(results) => println!("results: {}", results),
-//!         Err(incident) => {
-//!             incident.print_traceback();
-//!             if incident.is::<DivisionByZero>() {
-//!                 println!("Oops, divided by zero?");
-//!             }
-//!         }
-//!     }
-//! }
-//! ```
-//!
-//! # How does it work?
-//!
-//! Functions need to use the `IResult<T>` type provided by this library which
-//! makes the function either produce an `Ok(T)` or return an incident that
-//! wraps a specific error.  The incident wrapper serves multiple purposes:
-//!
-//! *   the wrapper will automatically box the error which keeps your results
-//!     small.  This will help code that fails infrequently.
-//! *   if a piece of code does not want to handle an error, the incident gets
-//!     augmented with more debug information so that it becomes obvious
-//!     where the error was bubbling through.
-//!
-//! In addition the incident internally can capture a bit more generic
-//! information such as static description strings.
-//!
-//! # Defining Errors
-//!
-//! To define an error you need to implement the `Error` trait on a type of
-//! yours.  It's recommended that you define as many of these as you need
-//! and not repurpose errors if you can avoid it.  This allows a user to
-//! conditionally do things depending on which error was raised.
-//!
-//! ## Simple errors
-//!
-//! For the most simple error you just need to define a struct without
-//! any fields and an implementation for `Error`:
-//!
-//! ```rust
-//! struct BadOperation;
-//!
-//! impl Error for BadOperation {
-//!     fn name(&self) -> &str { "Bad operation" }
-//! }
-//! ```
-//!
-//! ## Complex errors
-//!
-//! For more complex errors it's recommended to implement `detail` so
-//! that error messages can see what's happening:
-//!
-//! ```rust
-//! struct FileNotFound {
-//!     filename: Option<String>,
-//! }
-//! 
-//! impl Error for FileNotFound {
-//!     fn name(&self) -> &str { "File not found" }
-//!     fn detail(&self) -> Option<String> {
-//!         match self.filename {
-//!             Some(ref f) => { Some(format!("filename={}", f)) },
-//!             None => None,
-//!         }
-//!     }
-//! }
-//! ```
-//!
-//! # Failing
-//!
-//! To fail with an error you can use the `fail!` macro.  In the most
-//! simplest case all you need to do is to use it with one of your
-//! errors:
-//!
-//! ```rust
-//! fail!(BadOperation);
-//! fail!(FileNotFound { file: Some("missing.txt") });
-//! ```
-//!
-//! You can also provide a static description which gives a bit of
-//! information about why the error occurred as second argument:
-//!
-//! ```rust
-//! fail!(BadOperation, "unable to process the row due to a logic error.");
-//! ```
-//!
-//! Optionally you can also provide a last argument which is another
-//! incident.  This is very useful when you are already handling an
-//! error and you want to replace it with a different one:
-//!
-//! ```rust
-//! fail!(BadOperation, "could not load record", original_incident);
-//! ```
-//!
-//! # Trying
-//!
-//! Very often error handling involves bubbling through errors.  This can
-//! be achieved through the `try!` macro.  In the simplest form it takes
-//! a single argument.  It will then unwrap the result or propagate the
-//! error onwards:
-//!
-//! ```rust
-//! let result = try!(a_failing_operation());
-//! ```
-//!
-//! In addition it takes extra arguments it forwards to `fail!`:
-//!
-//! ```rust
-//! let result = try!(a_failing_operation(), OtherError,
-//!     "will fail with a different error if it goes wrong");
-//! ```
 #![crate_name = "incidents"]
 #![crate_type = "lib"]
 #![license = "BSD"]
@@ -209,8 +57,18 @@ pub trait Error: 'static + Send {
     /// The human readable name of the error.
     fn name(&self) -> &str;
 
+    /// An optional description of the error.
+    fn description(&self) -> Option<&str> {
+        None
+    }
+
     /// Optional detail information generated from the error's data.
     fn detail(&self) -> Option<String> {
+        None
+    }
+
+    /// Optionally the cause of an error.
+    fn cause(&self) -> Option<&Error> {
         None
     }
 
@@ -255,8 +113,6 @@ impl<'a> ErrorExt<'a> for &'a Error {
 pub trait Frame: Send {
     /// If the frame points to an error, this returns it.
     fn error(&self) -> Option<&Error> { None }
-    /// If the frame contains a description, this returns it.
-    fn description(&self) -> Option<&str> { None }
     /// If the frame contains location information, this returns it.
     fn location(&self) -> Option<&LocationInfo> { None }
     /// If the frame was caused by another frame, this returns a reference
@@ -317,24 +173,9 @@ struct BasicErrorFrame<E: Error> {
     location: ErrorLocation,
 }
 
-struct DescribedErrorFrame<E: Error> {
-    error: E,
-    description: &'static str,
-    #[allow(dead_code)]
-    location: ErrorLocation,
-}
-
 struct ErrorFrameWithCause<E: Error> {
     error: E,
     cause: Box<Frame + Send>,
-    #[allow(dead_code)]
-    location: ErrorLocation,
-}
-
-struct ErrorFrameWithCauseAndDescription<E: Error> {
-    error: E,
-    cause: Box<Frame + Send>,
-    description: &'static str,
     #[allow(dead_code)]
     location: ErrorLocation,
 }
@@ -356,43 +197,9 @@ impl<E: Error> Frame for BasicErrorFrame<E> {
     }
 }
 
-impl<E: Error> Frame for DescribedErrorFrame<E> {
-    fn error(&self) -> Option<&Error> {
-        Some(&self.error as &Error)
-    }
-
-    fn description(&self) -> Option<&str> {
-        Some(self.description)
-    }
-
-    #[cfg(not(ndebug))]
-    fn location(&self) -> Option<&LocationInfo> {
-        self.location.as_ref()
-    }
-}
-
 impl<E: Error> Frame for ErrorFrameWithCause<E> {
     fn error(&self) -> Option<&Error> {
         Some(&self.error as &Error)
-    }
-
-    #[cfg(not(ndebug))]
-    fn location(&self) -> Option<&LocationInfo> {
-        self.location.as_ref()
-    }
-
-    fn cause_frame(&self) -> Option<&Frame + Send> {
-        Some(&*self.cause)
-    }
-}
-
-impl<E: Error> Frame for ErrorFrameWithCauseAndDescription<E> {
-    fn error(&self) -> Option<&Error> {
-        Some(&self.error as &Error)
-    }
-
-    fn description(&self) -> Option<&str> {
-        Some(self.description)
     }
 
     #[cfg(not(ndebug))]
@@ -510,17 +317,10 @@ impl Incident {
         self.error().name()
     }
 
-    /// Gets the description the error was thrown with.
+    /// Gets the description the error.
     #[inline(always)]
     pub fn description(&self) -> Option<&str> {
-        let mut ptr = self.frame.as_ref().map(|x| &**x);
-        while let Some(frm) = ptr {
-            match frm.description() {
-                Some(desc) => { return Some(desc); }
-                None => { ptr = frm.previous_frame(); }
-            }
-        }
-        None
+        self.error().description()
     }
 
     /// Gets the detail of the error.
@@ -570,10 +370,7 @@ impl Incident {
 ///
 /// *   `fail!(Incident)`: propagates an already existing incident.
 /// *   `fail!(Error)`: fails with an error.
-/// *   `fail!(Error, &'static str)`: fails with an error and description.
 /// *   `fail!(Error, Incident)`: fails with an error, caused by an incident.
-/// *   `fail!(Error, &'static str, Incident)`: fails with an error and
-///     description caused by an incident.
 pub trait ConstructIncident {
     fn construct_incident(args: Self, loc: Option<LocationInfo>) -> Incident;
 }
@@ -606,19 +403,6 @@ impl<E: Error> ConstructIncident for (E,) {
     }
 }
 
-impl<E: Error> ConstructIncident for (E, &'static str)  {
-    fn construct_incident((err, desc): (E, &'static str),
-                          loc: Option<LocationInfo>) -> Incident {
-        Incident {
-            frame: Some(box DescribedErrorFrame {
-                error: err,
-                description: desc,
-                location: freeze_location(loc),
-            } as Box<Frame + Send>)
-        }
-    }
-}
-
 impl<E: Error> ConstructIncident for (E, Incident) {
     fn construct_incident((err, cause): (E, Incident),
                           loc: Option<LocationInfo>) -> Incident {
@@ -627,21 +411,6 @@ impl<E: Error> ConstructIncident for (E, Incident) {
             frame: Some(box ErrorFrameWithCause {
                 error: err,
                 cause: cause.frame.take().unwrap(),
-                location: freeze_location(loc),
-            } as Box<Frame + Send>)
-        }
-    }
-}
-
-impl<E: Error> ConstructIncident for (E, &'static str, Incident) {
-    fn construct_incident((err, desc, cause): (E, &'static str, Incident),
-                          loc: Option<LocationInfo>) -> Incident {
-        let mut cause = cause;
-        Incident {
-            frame: Some(box ErrorFrameWithCauseAndDescription {
-                error: err,
-                cause: cause.frame.take().unwrap(),
-                description: desc,
                 location: freeze_location(loc),
             } as Box<Frame + Send>)
         }
@@ -722,10 +491,7 @@ impl<W: Writer> TraceFormatter<W> {
         for cause in trace.iter() {
             stdtry!(self.format_frame(*cause));
         }
-        match trace.iter().next() {
-            Some(cause) => stdtry!(self.format_cause(err, *cause)),
-            None => {}
-        }
+        stdtry!(self.format_cause(err));
         Ok(())
     }
 
@@ -748,11 +514,10 @@ impl<W: Writer> TraceFormatter<W> {
         Ok(())
     }
 
-    /// Formats the cause of an error.  Requires both the error and the
-    /// frame that goes with it.
-    pub fn format_cause(&mut self, err: &Error, frm: &Frame) -> io::IoResult<()> {
+    /// Formats the cause of an error.
+    pub fn format_cause(&mut self, err: &Error) -> io::IoResult<()> {
         stdtry!(write!(&mut self.writer, "{}", err.name()));
-        match frm.description() {
+        match err.description() {
             Some(desc) => stdtry!(write!(&mut self.writer, ": {}", desc)),
             None => {}
         }
