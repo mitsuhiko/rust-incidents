@@ -706,9 +706,9 @@ impl<W: Writer> TraceFormatter<W> {
         traces.reverse();
         for (idx, &(ref root, ref trace)) in traces.iter().enumerate() {
             if idx > 0 {
-                stdtry!(writeln!(self.writer, ""));
-                stdtry!(writeln!(self.writer, "The above error resulted in another:"));
-                stdtry!(writeln!(self.writer, ""));
+                stdtry!(writeln!(&mut self.writer, ""));
+                stdtry!(writeln!(&mut self.writer, "The above error resulted in another:"));
+                stdtry!(writeln!(&mut self.writer, ""));
             }
             stdtry!(self.format_trace(*root, trace.as_slice()));
         }
@@ -718,7 +718,7 @@ impl<W: Writer> TraceFormatter<W> {
 
     /// Formats a single trace.
     fn format_trace(&mut self, err: &Error, trace: &[&Frame]) -> io::IoResult<()> {
-        stdtry!(writeln!(self.writer, "Traceback (most recent cause last):"));
+        stdtry!(writeln!(&mut self.writer, "Traceback (most recent cause last):"));
         for cause in trace.iter() {
             stdtry!(self.format_frame(*cause));
         }
@@ -733,16 +733,16 @@ impl<W: Writer> TraceFormatter<W> {
     pub fn format_frame(&mut self, frm: &Frame) -> io::IoResult<()> {
         match frm.location() {
             Some(loc) => {
-                stdtry!(writeln!(self.writer, "  File \"{}\", line {}",
+                stdtry!(writeln!(&mut self.writer, "  File \"{}\", line {}",
                               loc.file.display(), loc.line));
                 match loc.get_source_line() {
-                    Ok(line) => stdtry!(writeln!(self.writer, "    {}",
+                    Ok(line) => stdtry!(writeln!(&mut self.writer, "    {}",
                         line.trim_chars([' ', '\t', '\r', '\n'].as_slice()))),
                     Err(_) => {}
                 }
             }
             None => {
-                stdtry!(writeln!(self.writer, "  File <unknown>, line ?"));
+                stdtry!(writeln!(&mut self.writer, "  File <unknown>, line ?"));
             }
         }
         Ok(())
@@ -751,16 +751,16 @@ impl<W: Writer> TraceFormatter<W> {
     /// Formats the cause of an error.  Requires both the error and the
     /// frame that goes with it.
     pub fn format_cause(&mut self, err: &Error, frm: &Frame) -> io::IoResult<()> {
-        stdtry!(write!(self.writer, "{}", err.name()));
+        stdtry!(write!(&mut self.writer, "{}", err.name()));
         match frm.description() {
-            Some(desc) => stdtry!(write!(self.writer, ": {}", desc)),
+            Some(desc) => stdtry!(write!(&mut self.writer, ": {}", desc)),
             None => {}
         }
         match err.detail() {
-            Some(detail) => stdtry!(write!(self.writer, " ({})", detail)),
+            Some(detail) => stdtry!(write!(&mut self.writer, " ({})", detail)),
             None => {}
         }
-        stdtry!(writeln!(self.writer, ""));
+        stdtry!(writeln!(&mut self.writer, ""));
         Ok(())
     }
 }
