@@ -340,9 +340,28 @@ impl Traceback {
     }
 }
 
-struct Failure<E: Error> {
-    error: Option<Box<Error>>,
+pub struct Failure<E: Error> {
+    error: Option<Box<E>>,
     traceback: Traceback,
+}
+
+impl<E: Error> Failure<E> {
+    pub fn traceback(&self) -> Option<&Traceback> {
+        Some(&self.traceback)
+    }
+
+    pub fn error(&self) -> &E {
+        match self.error {
+            Some(ref val) => &**val,
+            None => panic!("Error went away!?")
+        }
+    }
+}
+
+impl<E: Error> Deref<E> for Failure<E> {
+    fn deref(&self) -> &E {
+        self.error()
+    }
 }
 
 
@@ -365,7 +384,7 @@ impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
     fn construct_failure((err,): (E,), loc: Option<LocationInfo>) -> Failure<T> {
         let err: T = FromError::from_error(err);
         Failure {
-            error: Some(box err.clone() as Box<Error>),
+            error: Some(box err.clone()),
             traceback: Traceback {
                 frame: Some(box BasicErrorFrame {
                     // XXX: would be nice if this would not be a clone but a
@@ -400,7 +419,7 @@ impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Failure<C>)
         let err: T = FromError::from_error(err);
         let mut cause = cause;
         Failure {
-            error: Some(box err.clone() as Box<Error>),
+            error: Some(box err.clone()),
             traceback: Traceback {
                 frame: Some(box ErrorFrameWithCause {
                     error: err.clone(),
