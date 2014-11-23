@@ -422,32 +422,7 @@ impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
             error: Some(box err.clone()),
             traceback: Traceback {
                 frame: Some(box BasicErrorFrame {
-                    // XXX: would be nice if this would not be a clone but a
-                    // pointer to the error, would that be possible?
                     error: err.clone(),
-                    location: loc,
-                } as Box<Frame + Send>)
-            }
-        }
-    }
-}
-
-impl<E: Error> ConstructFailure<(Failure<E>,)> for Failure<E> {
-    #[cfg(ndebug)]
-    fn construct_failure((parent,): (Failure<E>,), _: Option<LocationInfo>) -> Failure<E> {
-        parent
-    }
-
-    #[cfg(not(ndebug))]
-    fn construct_failure((parent,): (Failure<E>,), loc: Option<LocationInfo>) -> Failure<E> {
-        let mut parent = parent;
-        Failure {
-            error: Some(parent.error.take().expect(
-                "attempted to move error that was already moved")),
-            traceback: Traceback {
-                frame: Some(box PropagationFrame {
-                    parent: parent.traceback.frame.take().expect(
-                        "attempted to propagate a failure that was already propagated."),
                     location: loc,
                 } as Box<Frame + Send>)
             }
@@ -474,6 +449,29 @@ impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Failure<C>)
                     error: err.clone(),
                     cause: cause.traceback.frame.take().expect(
                         "attempted to use a failure as cause that was already used."),
+                    location: loc,
+                } as Box<Frame + Send>)
+            }
+        }
+    }
+}
+
+impl<E: Error> ConstructFailure<(Failure<E>,)> for Failure<E> {
+    #[cfg(ndebug)]
+    fn construct_failure((parent,): (Failure<E>,), _: Option<LocationInfo>) -> Failure<E> {
+        parent
+    }
+
+    #[cfg(not(ndebug))]
+    fn construct_failure((parent,): (Failure<E>,), loc: Option<LocationInfo>) -> Failure<E> {
+        let mut parent = parent;
+        Failure {
+            error: Some(parent.error.take().expect(
+                "attempted to move error that was already moved")),
+            traceback: Traceback {
+                frame: Some(box PropagationFrame {
+                    parent: parent.traceback.frame.take().expect(
+                        "attempted to propagate a failure that was already propagated."),
                     location: loc,
                 } as Box<Frame + Send>)
             }
