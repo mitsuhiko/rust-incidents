@@ -21,7 +21,7 @@ impl Error for BadOperation {
     fn description(&self) -> Option<&str> { Some(self.desc) }
 }
 
-fn something_that_fails(good: bool) -> FResult<int, BadOperation {
+fn something_that_fails(good: bool) -> FResult<int, BadOperation> {
     if !good {
         fail!(BadOperation { desc: "Something wend badly wrong" });
     }
