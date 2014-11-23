@@ -263,19 +263,27 @@ impl<'a> ErrorExt<'a> for &'a Error {
 /// stacktraces.
 pub trait Frame: Send {
     /// If the frame points to an error, this returns it.
-    fn error(&self) -> Option<&Error> { None }
+    fn error(&self) -> Option<&Error> {
+        None
+    }
 
     /// If the frame contains location information, this returns it.
-    fn location(&self) -> Option<&LocationInfo> { None }
+    fn location(&self) -> Option<&LocationInfo> {
+        None
+    }
 
     /// If the frame was caused by another frame, this returns a reference
     /// to it.  This is used if an error gets handled by failing with
     /// another error.
-    fn cause_frame(&self) -> Option<&Frame + Send> { None }
+    fn cause_frame(&self) -> Option<&Frame + Send> {
+        None
+    }
 
     /// If the frame is linked directly to another frame, this returns a
     /// reference to it.  This will never be the cause frame.
-    fn previous_frame(&self) -> Option<&Frame + Send> { None }
+    fn previous_frame(&self) -> Option<&Frame + Send> {
+        None
+    }
 
     /// If it is possible to construct a trace from this frame, it will
     /// return the error and the trace to it.  Note that this is not always
