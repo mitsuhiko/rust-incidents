@@ -687,14 +687,19 @@ impl<E: Error> ConstructFailure<(Failure<E>,)> for Failure<E> {
 #[macro_export]
 macro_rules! fail {
     ($($expr:expr),*) => ({
-        return Err(::incidents::ConstructFailure::construct_failure(
-            ($($expr,)*),
-            if cfg!(ndebug) {
-                None
-            } else {
-                Some(::incidents::LocationInfo::new(file!(), line!()))
-            }
-        ))
+        #[cold]
+        #[inline(never)]
+        fn fail<A, X, T: ::incidents::ConstructFailure<A>>(args: A) -> Result<X, T> {
+            Err(::incidents::ConstructFailure::construct_failure(
+                args,
+                if cfg!(ndebug) {
+                    None
+                } else {
+                    Some(::incidents::LocationInfo::new(file!(), line!()))
+                }
+            ))
+        }
+        return fail(($($expr,)*));
     });
 }
 
