@@ -461,7 +461,7 @@ impl Traceback {
     /// ```
     #[inline(always)]
     pub fn error_as<E: Error>(&self) -> Option<&E> {
-        self.error().cast()
+        self.error().cast::<E>()
     }
 
     /// Checks if the error is of a specific type.
