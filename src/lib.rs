@@ -373,6 +373,25 @@ pub struct Traceback {
 
 impl Traceback {
 
+    /// Return the traceback object from a failure.
+    ///
+    /// This will return a borrowed reference to the traceback contained
+    /// in a failure.  This operation will return `None` for release builds
+    /// for which a failure does not actually contain a traceback.
+    pub fn from_failure<E: Error>(failure: &Failure<E>) -> Option<&Traceback> {
+        return resolve(failure);
+
+        #[cfg(not(ndebug))]
+        fn resolve<E: Error>(failure: &Failure<E>) -> Option<&Traceback> {
+            Some(&failure.traceback)
+        }
+
+        #[cfg(ndebug)]
+        fn resolve<E: Error>(_: &Failure<E>) -> Option<&Traceback> {
+            None
+        }
+    }
+
     /// Returns the first frame of the traceback.
     pub fn frame(&self) -> &Frame + Send {
         match self.frame {
@@ -506,7 +525,8 @@ impl Traceback {
 ///
 /// Failures can be dereferenced to get the error that created them.
 ///
-/// To get the traceback of a failure use the `get_traceback` function.
+/// To get the traceback of a failure use the `Traceback::from_failure`
+/// function.
 pub struct Failure<E: Error> {
     #[cfg(ndebug)]
     error: Option<Box<E>>,
@@ -530,25 +550,6 @@ impl<E: Error> Deref<E> for Failure<E> {
     }
 }
 
-/// Return the traceback object from a failure.
-///
-/// This will return a borrowed reference to the traceback contained
-/// in a failure.  This operation will return `None` for release builds
-/// for which a failure does not actually contain a traceback.
-pub fn get_traceback<E: Error>(failure: &Failure<E>) -> Option<&Traceback> {
-    return resolve(failure);
-
-    #[cfg(not(ndebug))]
-    fn resolve<E: Error>(failure: &Failure<E>) -> Option<&Traceback> {
-        Some(&failure.traceback)
-    }
-
-    #[cfg(ndebug)]
-    fn resolve<E: Error>(_: &Failure<E>) -> Option<&Traceback> {
-        None
-    }
-}
-
 /// Print the traceback of a failure.
 ///
 /// In release builds this will not contain an actual traceback but
@@ -558,7 +559,7 @@ pub fn get_traceback<E: Error>(failure: &Failure<E>) -> Option<&Traceback> {
 /// This internally uses `TraceFormatter`.
 pub fn print_traceback<E: Error>(failure: &Failure<E>) {
     let mut fmt = TraceFormatter::new(std::io::stdio::stderr());
-    let _ = match get_traceback(failure) {
+    let _ = match Traceback::from_failure(failure) {
         Some(tb) => fmt.format_traces(tb),
         None => fmt.format_fallback_trace(&**failure as &Error),
     };

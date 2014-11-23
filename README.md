@@ -25,7 +25,7 @@ fn something_that_fails(good: bool) -> FResult<int, BadOperation> {
     if !good {
         fail!(BadOperation { desc: "Something wend badly wrong" });
     }
-    Ok((42))
+    Ok(42)
 }
 
 fn function_that_tries() -> FResult<int, BadOperation> {
