@@ -334,23 +334,23 @@ impl Traceback {
     }
 
     /// Prints the traceback of the incident to stderr.
-    pub fn print_traceback(&self) {
+    pub fn print(&self) {
         let mut fmt = TraceFormatter::new(std::io::stdio::stderr());
         let _ = fmt.format_traces(self);
     }
 }
 
+/// A failure wraps an error in a box.
+///
+/// In debug builds it also augments it with debug information.
 pub struct Failure<E: Error> {
     error: Option<Box<E>>,
+    // XXX: remove from non debug builds
     traceback: Traceback,
 }
 
-impl<E: Error> Failure<E> {
-    pub fn traceback(&self) -> Option<&Traceback> {
-        Some(&self.traceback)
-    }
-
-    pub fn error(&self) -> &E {
+impl<E: Error> Deref<E> for Failure<E> {
+    fn deref(&self) -> &E {
         match self.error {
             Some(ref val) => &**val,
             None => panic!("Error went away!?")
@@ -358,9 +358,14 @@ impl<E: Error> Failure<E> {
     }
 }
 
-impl<E: Error> Deref<E> for Failure<E> {
-    fn deref(&self) -> &E {
-        self.error()
+pub fn get_traceback<E: Error>(failure: &Failure<E>) -> Option<&Traceback> {
+    Some(&failure.traceback)
+}
+
+pub fn print_traceback<E: Error>(failure: &Failure<E>) {
+    match get_traceback(failure) {
+        Some(tb) => tb.print(),
+        None => {},
     }
 }
 
@@ -397,11 +402,11 @@ impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
     }
 }
 
-impl<E: Error> ConstructFailure<(E,)> for Failure<E> {
+impl<E: Error> ConstructFailure<(Failure<E>,)> for Failure<E> {
     fn construct_failure((parent,): (Failure<E>,), loc: Option<LocationInfo>) -> Failure<E> {
         let mut parent = parent;
         Failure {
-            error: Some(box parent.error.take().expect(
+            error: Some(parent.error.take().expect(
                 "attempted to move error that was already moved")),
             traceback: Traceback {
                 frame: Some(box PropagationFrame {
@@ -553,3 +558,5 @@ macro_rules! try {
         Ok(x) => x,
     });
 }
+
+pub type FResult<T, E> = Result<T, Failure<E>>;

@@ -4,8 +4,9 @@
 #[phase(plugin, link)]
 extern crate incidents;
 
-use incidents::{Error, IResult};
+use incidents::{Error, FResult, print_traceback};
 
+#[deriving(Clone)]
 struct BadBehavior;
 
 impl Error for BadBehavior {
@@ -14,6 +15,7 @@ impl Error for BadBehavior {
     }
 }
 
+#[deriving(Clone)]
 struct FileNotFound {
     file: Option<Path>,
 }
@@ -33,27 +35,24 @@ impl Error for FileNotFound {
     }
 }
 
-fn testing() -> IResult<()> {
-    fail!(FileNotFound { file: Some(Path::new("/missing.txt")) },
-          "The file could not be found");
+fn testing() -> FResult<(), FileNotFound> {
+    fail!(FileNotFound { file: Some(Path::new("/missing.txt")) });
 }
 
-fn bubble() -> IResult<()> {
+fn bubble() -> FResult<(), FileNotFound> {
     try!(testing());
     Ok(())
-}
-
-fn fail_without_incident() -> Result<int, BadBehavior> {
-    let x : Result<_, BadBehavior> = Ok(1 + 1);
-    Ok(1 + try!(x))
 }
 
 fn main() {
     match bubble() {
         Ok(x) => println!("Produced {}", x),
-        Err(err) => err.print_traceback(),
-    }
-    if let Ok(x) = fail_without_incident() {
-        println!("Produced {}", x);
+        Err(ref err) => {
+            print_traceback(err);
+            match err.file {
+                Some(ref f) => println!("filename = {}", f.display()),
+                None => {}
+            }
+        }
     }
 }
