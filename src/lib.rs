@@ -168,7 +168,11 @@ impl LocationInfo {
     /// expensive operation and it can also return invalid data
     /// in case the file was changed after the compilation took place.
     pub fn get_source_line(&self) -> io::IoResult<String> {
-        let file = try!(io::File::open(&self.file));
+        // can't use try! here because of bootstrapping issues.
+        let file = match io::File::open(&self.file) {
+            Err(err) => { return Err(err); },
+            Ok(f) => f,
+        };
         let mut reader = io::BufferedReader::new(file);
         match reader.lines().skip(self.line - 1).next() {
             Some(Ok(line)) => Ok(line),
