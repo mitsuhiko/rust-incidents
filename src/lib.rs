@@ -54,7 +54,7 @@ impl LocationInfo {
 ///
 /// At the very least a name is required, however for most errors it's
 /// also a good idea to implement the detail.
-pub trait Error: 'static + Send + Clone {
+pub trait Error: 'static + Send {
 
     /// The human readable name of the error.
     fn name(&self) -> &str;
@@ -345,12 +345,20 @@ impl Traceback {
 ///
 /// In debug builds it also augments it with debug information.
 pub struct Failure<E: Error> {
+    #[cfg(ndebug)]
     error: Option<Box<E>>,
     #[cfg(not(ndebug))]
     traceback: Traceback,
 }
 
 impl<E: Error> Deref<E> for Failure<E> {
+    #[cfg(not(ndebug))]
+    fn deref(&self) -> &E {
+        self.traceback.error_as().expect(
+            "Debug failure does not contain a compatible error.")
+    }
+
+    #[cfg(ndebug)]
     fn deref(&self) -> &E {
         match self.error {
             Some(ref val) => &**val,
@@ -419,10 +427,9 @@ impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
     fn construct_failure((err,): (E,), loc: Option<LocationInfo>) -> Failure<T> {
         let err: T = FromError::from_error(err);
         Failure {
-            error: Some(box err.clone()),
             traceback: Traceback {
                 frame: Some(box BasicErrorFrame {
-                    error: err.clone(),
+                    error: err,
                     location: loc,
                 } as Box<Frame + Send>)
             }
@@ -443,10 +450,9 @@ impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Failure<C>)
         let err: T = FromError::from_error(err);
         let mut cause = cause;
         Failure {
-            error: Some(box err.clone()),
             traceback: Traceback {
                 frame: Some(box ErrorFrameWithCause {
-                    error: err.clone(),
+                    error: err,
                     cause: cause.traceback.frame.take().expect(
                         "attempted to use a failure as cause that was already used."),
                     location: loc,
@@ -466,8 +472,6 @@ impl<E: Error> ConstructFailure<(Failure<E>,)> for Failure<E> {
     fn construct_failure((parent,): (Failure<E>,), loc: Option<LocationInfo>) -> Failure<E> {
         let mut parent = parent;
         Failure {
-            error: Some(parent.error.take().expect(
-                "attempted to move error that was already moved")),
             traceback: Traceback {
                 frame: Some(box PropagationFrame {
                     parent: parent.traceback.frame.take().expect(

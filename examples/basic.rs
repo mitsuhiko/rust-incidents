@@ -6,7 +6,6 @@ extern crate incidents;
 
 use incidents::{Error, FResult, print_traceback};
 
-#[deriving(Clone)]
 struct BadBehavior;
 
 impl Error for BadBehavior {
@@ -15,7 +14,6 @@ impl Error for BadBehavior {
     }
 }
 
-#[deriving(Clone)]
 struct FileNotFound {
     file: Option<Path>,
 }
