@@ -12,7 +12,8 @@
 use std::{raw, mem, io};
 use std::intrinsics::TypeId;
 
-// temporary
+// this we need because IoError does not implement our error.  this will
+// eventually change :)
 macro_rules! stdtry {
     ($expr:expr) => (match $expr {
         Err(x) => { return Err(::std::error::FromError::from_error(x)); }
@@ -156,22 +157,26 @@ pub trait Frame: Send {
 }
 
 
+#[cfg(not(ndebug))]
 struct BasicErrorFrame<E: Error> {
     error: E,
     location: Option<LocationInfo>,
 }
 
+#[cfg(not(ndebug))]
 struct ErrorFrameWithCause<E: Error> {
     error: E,
     cause: Box<Frame + Send>,
     location: Option<LocationInfo>,
 }
 
+#[cfg(not(ndebug))]
 struct PropagationFrame {
     parent: Box<Frame + Send>,
     location: Option<LocationInfo>,
 }
 
+#[cfg(not(ndebug))]
 impl<E: Error> Frame for BasicErrorFrame<E> {
     fn error(&self) -> Option<&Error> {
         Some(&self.error as &Error)
@@ -182,6 +187,7 @@ impl<E: Error> Frame for BasicErrorFrame<E> {
     }
 }
 
+#[cfg(not(ndebug))]
 impl<E: Error> Frame for ErrorFrameWithCause<E> {
     fn error(&self) -> Option<&Error> {
         Some(&self.error as &Error)
@@ -196,6 +202,7 @@ impl<E: Error> Frame for ErrorFrameWithCause<E> {
     }
 }
 
+#[cfg(not(ndebug))]
 impl Frame for PropagationFrame {
     fn location(&self) -> Option<&LocationInfo> {
         self.location.as_ref()
@@ -332,12 +339,6 @@ impl Traceback {
         traces.reverse();
         traces
     }
-
-    /// Prints the traceback of the incident to stderr.
-    pub fn print(&self) {
-        let mut fmt = TraceFormatter::new(std::io::stdio::stderr());
-        let _ = fmt.format_traces(self);
-    }
 }
 
 /// A failure wraps an error in a box.
@@ -345,7 +346,7 @@ impl Traceback {
 /// In debug builds it also augments it with debug information.
 pub struct Failure<E: Error> {
     error: Option<Box<E>>,
-    // XXX: remove from non debug builds
+    #[cfg(not(ndebug))]
     traceback: Traceback,
 }
 
@@ -353,20 +354,41 @@ impl<E: Error> Deref<E> for Failure<E> {
     fn deref(&self) -> &E {
         match self.error {
             Some(ref val) => &**val,
-            None => panic!("Error went away!?")
+            None => panic!("Failure does not contain an error.")
         }
     }
 }
 
+/// Return the traceback object from a failure.
+///
+/// This will return a borrowed reference to the traceback contained
+/// in a failure.  This operation will return `None` for release builds
+/// for which a failure does not actually contain a traceback.
 pub fn get_traceback<E: Error>(failure: &Failure<E>) -> Option<&Traceback> {
-    Some(&failure.traceback)
+    return resolve(failure);
+
+    #[cfg(not(ndebug))]
+    fn resolve<E: Error>(failure: &Failure<E>) -> Option<&Traceback> {
+        Some(&failure.traceback)
+    }
+
+    #[cfg(ndebug)]
+    fn resolve<E: Error>(_: &Failure<E>) -> Option<&Traceback> {
+        None
+    }
 }
 
+/// Print the traceback of a failure.
+///
+/// In release builds this will not contain an actual traceback but
+/// an emulation based on the information that is available on the
+/// error itself.
 pub fn print_traceback<E: Error>(failure: &Failure<E>) {
-    match get_traceback(failure) {
-        Some(tb) => tb.print(),
-        None => {},
-    }
+    let mut fmt = TraceFormatter::new(std::io::stdio::stderr());
+    let _ = match get_traceback(failure) {
+        Some(tb) => fmt.format_traces(tb),
+        None => fmt.format_fallback_trace(&**failure as &Error),
+    };
 }
 
 
@@ -386,6 +408,14 @@ pub trait ConstructFailure<A> {
 }
 
 impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
+    #[cfg(ndebug)]
+    fn construct_failure((err,): (E,), _: Option<LocationInfo>) -> Failure<T> {
+        Failure {
+            error: Some(box FromError::from_error(err)),
+        }
+    }
+
+    #[cfg(not(ndebug))]
     fn construct_failure((err,): (E,), loc: Option<LocationInfo>) -> Failure<T> {
         let err: T = FromError::from_error(err);
         Failure {
@@ -403,6 +433,12 @@ impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
 }
 
 impl<E: Error> ConstructFailure<(Failure<E>,)> for Failure<E> {
+    #[cfg(ndebug)]
+    fn construct_failure((parent,): (Failure<E>,), _: Option<LocationInfo>) -> Failure<E> {
+        parent
+    }
+
+    #[cfg(not(ndebug))]
     fn construct_failure((parent,): (Failure<E>,), loc: Option<LocationInfo>) -> Failure<E> {
         let mut parent = parent;
         Failure {
@@ -420,6 +456,14 @@ impl<E: Error> ConstructFailure<(Failure<E>,)> for Failure<E> {
 }
 
 impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Failure<C>)> for Failure<T> {
+    #[cfg(ndebug)]
+    fn construct_failure((err, _): (E, Failure<C>), _: Option<LocationInfo>) -> Failure<T> {
+        Failure {
+            error: Some(box FromError::from_error(err)),
+        }
+    }
+
+    #[cfg(not(ndebug))]
     fn construct_failure((err, cause): (E, Failure<C>), loc: Option<LocationInfo>) -> Failure<T> {
         let err: T = FromError::from_error(err);
         let mut cause = cause;
@@ -454,6 +498,34 @@ impl<W: Writer> TraceFormatter<W> {
         }
     }
 
+    fn format_divider(&mut self) -> io::IoResult<()> {
+        stdtry!(writeln!(&mut self.writer, ""));
+        stdtry!(writeln!(&mut self.writer, "The above error resulted in another:"));
+        stdtry!(writeln!(&mut self.writer, ""));
+        Ok(())
+    }
+
+    /// Formats a fallback trace from an error.
+    pub fn format_fallback_trace(&mut self, err: &Error) -> io::IoResult<()> {
+        let mut causes = vec![];
+        let mut ptr = Some(err);
+
+        while let Some(err) = ptr {
+            causes.push(err);
+            ptr = err.cause();
+        }
+        causes.reverse();
+
+        for (idx, cause) in causes.iter().enumerate() {
+            if idx > 0 {
+                stdtry!(self.format_divider());
+            }
+            stdtry!(self.format_cause(*cause));
+        }
+
+        Ok(())
+    }
+
     /// Formats all traces of the incident.
     pub fn format_traces(&mut self, i: &Traceback) -> io::IoResult<()> {
         let mut traces = vec![];
@@ -471,9 +543,7 @@ impl<W: Writer> TraceFormatter<W> {
         traces.reverse();
         for (idx, &(ref root, ref trace)) in traces.iter().enumerate() {
             if idx > 0 {
-                stdtry!(writeln!(&mut self.writer, ""));
-                stdtry!(writeln!(&mut self.writer, "The above error resulted in another:"));
-                stdtry!(writeln!(&mut self.writer, ""));
+                stdtry!(self.format_divider());
             }
             stdtry!(self.format_trace(*root, trace.as_slice()));
         }
