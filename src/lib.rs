@@ -110,8 +110,8 @@
 //! # Tracebacks
 //!
 //! In debug builds tracebacks are available.  At any point can you call
-//! `get_traceback()` on a failure to get the traceback.  This also works
-//! in release builds but the return value will be `None`.
+//! `Traceback::from_failure()` with a failure to get the traceback.  This
+//! also works in release builds but the return value will be `None`.
 //!
 //! Tracebacks can also be printed with `print_traceback` and `TraceFormatter`.
 //! This looks a bit like Python tracebacks:
