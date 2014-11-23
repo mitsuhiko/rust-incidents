@@ -156,7 +156,7 @@ impl LocationInfo {
     /// Creates a new location info from specific values.
     pub fn new(file: &str, line: uint) -> LocationInfo {
         LocationInfo {
-            file: ::std::path::Path::new(file),
+            file: Path::new(file),
             line: line,
         }
     }
