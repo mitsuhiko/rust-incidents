@@ -10,7 +10,7 @@ struct BadBehavior;
 
 impl Error for BadBehavior {
     fn name(&self) -> &str {
-        "Bad behavior"
+        "Bad Behavior"
     }
 }
 
@@ -20,7 +20,7 @@ struct FileNotFound {
 
 impl Error for FileNotFound {
     fn name(&self) -> &str {
-        "File not found"
+        "File Not Found"
     }
 
     fn detail(&self) -> Option<String> {
@@ -42,7 +42,17 @@ fn bubble() -> FResult<(), FileNotFound> {
     Ok(())
 }
 
+fn bar() -> Result<(), BadBehavior> {
+    Err(BadBehavior)
+}
+
+fn test() -> Result<(), BadBehavior> {
+    try!(bar());
+    Ok(())
+}
+
 fn main() {
+    let _ = test();
     match bubble() {
         Ok(x) => println!("Produced {}", x),
         Err(ref err) => {
