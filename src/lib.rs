@@ -59,6 +59,36 @@
 //! }
 //! ```
 //!
+//! # Error Conversion
+//!
+//! Errors can be converted through the use of the `FromError` trait.  This
+//! allows a library to easily work with other libraries that it might use
+//! internally and give the user a consistent error experience.
+//!
+//! Example:
+//!
+//! ```rust
+//! enum MyError {
+//!     BadOperation,
+//!     IoError(io::IoError),
+//! }
+//!
+//! impl Error for MyError {
+//!     fn name(&self) -> &str {
+//!         match *self {
+//!             MyError::BadOperation => "Bad Operation",
+//!             MyError::IoError(ref err) => err.name(),
+//!         }
+//!     }
+//! }
+//!
+//! impl FromError<IoError> for MyError {
+//!     fn from_error(err: io::IoError) -> MyError {
+//!         MyError::IoError(err)
+//!     }
+//! }
+//! ```
+//!
 //! # Tracebacks
 //!
 //! In debug builds tracebacks are available.  At any point can you call
@@ -173,13 +203,15 @@ pub trait Error: 'static + Send {
     fn get_error_type(&self) -> TypeId { TypeId::of::<Self>() }
 }
 
-#[doc(hidden)]
+/// Adds dynamic helpers to errors.
 pub trait ErrorExt<'a> {
+    /// Checks if an error is of a specific type.
     fn is<E: Error>(self) -> bool;
+
+    /// Casts an error to a concrete type.
     fn cast<E: Error>(self) -> Option<&'a E>;
 }
 
-#[doc(hidden)]
 impl<'a> ErrorExt<'a> for &'a Error {
 
     #[inline(always)]
