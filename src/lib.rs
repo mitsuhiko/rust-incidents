@@ -59,6 +59,24 @@
 //! }
 //! ```
 //!
+//! # Handling Errors
+//!
+//! Errors that are in failures can be handled very transparently.  The
+//! failure is strongly typed and derefs into the actual error:
+//!
+//! ```rust
+//! fn function_that_handles() {
+//!     match function_that_fails() {
+//!         Ok(result) => {
+//!             println!("The result: {}", result);
+//!         }
+//!         Err(ref err) => {
+//!             println!("Error description: {}", err.desc);
+//!         }
+//!     }
+//! }
+//! ```
+//!
 //! # Error Conversion
 //!
 //! Errors can be converted through the use of the `FromError` trait.  This
