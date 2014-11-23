@@ -12,6 +12,7 @@
 use std::{raw, mem, io};
 use std::intrinsics::TypeId;
 
+// temporary
 macro_rules! stdtry {
     ($expr:expr) => (match $expr {
         Err(x) => { return Err(::std::error::FromError::from_error(x)); }
@@ -52,7 +53,7 @@ impl LocationInfo {
 ///
 /// At the very least a name is required, however for most errors it's
 /// also a good idea to implement the detail.
-pub trait Error: 'static + Send {
+pub trait Error: 'static + Send + Clone {
 
     /// The human readable name of the error.
     fn name(&self) -> &str;
@@ -154,36 +155,21 @@ pub trait Frame: Send {
     }
 }
 
-#[cfg(ndebug)]
-type ErrorLocation = ();
-
-#[cfg(ndebug)]
-fn freeze_location(_: Option<LocationInfo>) -> ErrorLocation { () }
-
-#[cfg(not(ndebug))]
-type ErrorLocation = Option<LocationInfo>;
-
-#[cfg(not(ndebug))]
-fn freeze_location(loc: Option<LocationInfo>) -> ErrorLocation { loc }
-
 
 struct BasicErrorFrame<E: Error> {
     error: E,
-    #[allow(dead_code)]
-    location: ErrorLocation,
+    location: Option<LocationInfo>,
 }
 
 struct ErrorFrameWithCause<E: Error> {
     error: E,
     cause: Box<Frame + Send>,
-    #[allow(dead_code)]
-    location: ErrorLocation,
+    location: Option<LocationInfo>,
 }
 
 struct PropagationFrame {
     parent: Box<Frame + Send>,
-    #[allow(dead_code)]
-    location: ErrorLocation,
+    location: Option<LocationInfo>,
 }
 
 impl<E: Error> Frame for BasicErrorFrame<E> {
@@ -191,7 +177,6 @@ impl<E: Error> Frame for BasicErrorFrame<E> {
         Some(&self.error as &Error)
     }
 
-    #[cfg(not(ndebug))]
     fn location(&self) -> Option<&LocationInfo> {
         self.location.as_ref()
     }
@@ -202,7 +187,6 @@ impl<E: Error> Frame for ErrorFrameWithCause<E> {
         Some(&self.error as &Error)
     }
 
-    #[cfg(not(ndebug))]
     fn location(&self) -> Option<&LocationInfo> {
         self.location.as_ref()
     }
@@ -213,7 +197,6 @@ impl<E: Error> Frame for ErrorFrameWithCause<E> {
 }
 
 impl Frame for PropagationFrame {
-    #[cfg(not(ndebug))]
     fn location(&self) -> Option<&LocationInfo> {
         self.location.as_ref()
     }
@@ -224,18 +207,11 @@ impl Frame for PropagationFrame {
 }
 
 /// Encapsulates errors.
-pub struct Incident {
+pub struct Traceback {
     frame: Option<Box<Frame + Send>>,
 }
 
-/// An incident wraps a trace of errors.  Generally it gives access to the
-/// outermost error only but there is extra functionality to return the
-/// whole trace in debug builds.
-///
-/// Incidents cannot be manually created other than through the
-/// `ConstructIncident` trait.  Normally you would be using the `fail!`
-/// macro to create one.
-impl Incident {
+impl Traceback {
 
     /// Returns the first frame of the incident.
     pub fn frame(&self) -> &Frame + Send {
@@ -265,7 +241,7 @@ impl Incident {
                 None => { ptr = frm.previous_frame(); }
             }
         }
-        panic!("Incident does not contain an error");
+        panic!("Traceback does not contain an error");
     }
 
     /// Returns the frame that contains the error.
@@ -277,7 +253,7 @@ impl Incident {
                 None => { ptr = frm.previous_frame(); }
             }
         }
-        panic!("Incident does not contain an error");
+        panic!("Traceback does not contain an error");
     }
 
     /// Returns the error as a pointer to a concrete type.
@@ -364,80 +340,76 @@ impl Incident {
     }
 }
 
-/// This trait is indirectly used by `fail!` to construct incidents.
-///
-/// The following forms are implemented:
-///
-/// *   `fail!(Incident)`: propagates an already existing incident.
-/// *   `fail!(Error)`: fails with an error.
-/// *   `fail!(Error, Incident)`: fails with an error, caused by an incident.
-pub trait ConstructIncident {
-    fn construct_incident(args: Self, loc: Option<LocationInfo>) -> Incident;
+struct Failure<E: Error> {
+    error: Option<Box<Error>>,
+    traceback: Traceback,
 }
 
-impl ConstructIncident for (Incident,) {
-    fn construct_incident((parent,): (Incident,), loc: Option<LocationInfo>) -> Incident {
-        if cfg!(ndebug) {
-            return parent;
-        }
 
-        let mut parent = parent;
-        Incident {
-            frame: Some(box PropagationFrame {
-                parent: parent.frame.take().unwrap(),
-                location: freeze_location(loc),
-            } as Box<Frame + Send>)
-        }
-    }
+// error conversion trait
+pub trait FromError<E> {
+    fn from_error(err: E) -> Self;
 }
 
-impl<E: Error> ConstructIncident for (E,) {
-    fn construct_incident((err,): (E,),
-                          loc: Option<LocationInfo>) -> Incident {
-        Incident {
-            frame: Some(box BasicErrorFrame {
-                error: err,
-                location: freeze_location(loc),
-            } as Box<Frame + Send>)
-        }
-    }
-}
-
-impl<E: Error> ConstructIncident for (E, Incident) {
-    fn construct_incident((err, cause): (E, Incident),
-                          loc: Option<LocationInfo>) -> Incident {
-        let mut cause = cause;
-        Incident {
-            frame: Some(box ErrorFrameWithCause {
-                error: err,
-                cause: cause.frame.take().unwrap(),
-                location: freeze_location(loc),
-            } as Box<Frame + Send>)
-        }
-    }
-}
-
-/// This trait is used by `fail!` to convert failures.
-///
-/// The default implementations dispatch to `ConstructIncident` and
-/// to just passing errors through transparently.
-pub trait FailureConverter<A> {
-    fn convert_failure(args: A, loc: Option<LocationInfo>) -> Self;
-}
-
-impl<E: ConstructIncident> FailureConverter<E> for Incident {
-    #[cold]
-    #[inline(never)]
-    fn convert_failure(args: E, loc: Option<LocationInfo>) -> Incident {
-        ConstructIncident::construct_incident(args, loc)
-    }
-}
-
-impl<E: Error> FailureConverter<(E,)> for E {
-    #[cold]
-    #[inline(never)]
-    fn convert_failure((err,): (E,), _: Option<LocationInfo>) -> E {
+impl<E> FromError<E> for E {
+    fn from_error(err: E) -> E {
         err
+    }
+}
+
+pub trait ConstructFailure<A> {
+    fn construct_failure(args: A, loc: Option<LocationInfo>) -> Self;
+}
+
+impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
+    fn construct_failure((err,): (E,), loc: Option<LocationInfo>) -> Failure<T> {
+        let err: T = FromError::from_error(err);
+        Failure {
+            error: Some(box err.clone() as Box<Error>),
+            traceback: Traceback {
+                frame: Some(box BasicErrorFrame {
+                    // XXX: would be nice if this would not be a clone but a
+                    // pointer to the error, would that be possible?
+                    error: err.clone(),
+                    location: loc,
+                } as Box<Frame + Send>)
+            }
+        }
+    }
+}
+
+impl<E: Error> ConstructFailure<(E,)> for Failure<E> {
+    fn construct_failure((parent,): (Failure<E>,), loc: Option<LocationInfo>) -> Failure<E> {
+        let mut parent = parent;
+        Failure {
+            error: Some(box parent.error.take().expect(
+                "attempted to move error that was already moved")),
+            traceback: Traceback {
+                frame: Some(box PropagationFrame {
+                    parent: parent.traceback.frame.take().expect(
+                        "attempted to propagate a failure that was already propagated."),
+                    location: loc,
+                } as Box<Frame + Send>)
+            }
+        }
+    }
+}
+
+impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Failure<C>)> for Failure<T> {
+    fn construct_failure((err, cause): (E, Failure<C>), loc: Option<LocationInfo>) -> Failure<T> {
+        let err: T = FromError::from_error(err);
+        let mut cause = cause;
+        Failure {
+            error: Some(box err.clone() as Box<Error>),
+            traceback: Traceback {
+                frame: Some(box ErrorFrameWithCause {
+                    error: err.clone(),
+                    cause: cause.traceback.frame.take().expect(
+                        "attempted to use a failure as cause that was already used."),
+                    location: loc,
+                } as Box<Frame + Send>)
+            }
+        }
     }
 }
 
@@ -459,7 +431,7 @@ impl<W: Writer> TraceFormatter<W> {
     }
 
     /// Formats all traces of the incident.
-    pub fn format_traces(&mut self, i: &Incident) -> io::IoResult<()> {
+    pub fn format_traces(&mut self, i: &Traceback) -> io::IoResult<()> {
         let mut traces = vec![];
         let mut ptr = Some(i.frame());
 
@@ -531,28 +503,22 @@ impl<W: Writer> TraceFormatter<W> {
 }
 
 
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __error_location {
-    () => ({
-        if cfg!(ndebug) {
-            None
-        } else {
-            Some(::incidents::LocationInfo {
-                file: ::std::path::Path::new(file!()),
-                line: line!(),
-                column: column!(),
-            })
-        }
-    })
-}
-
 /// Fails with an error.
 #[macro_export]
 macro_rules! fail {
     ($($expr:expr),*) => ({
-        return Err(::incidents::FailureConverter::convert_failure(
-            ($($expr,)*), __error_location!()))
+        return Err(::incidents::ConstructFailure::construct_failure(
+            ($($expr,)*),
+            if cfg!(ndebug) {
+                None
+            } else {
+                Some(::incidents::LocationInfo {
+                    file: ::std::path::Path::new(file!()),
+                    line: line!(),
+                    column: column!(),
+                })
+            }
+        ))
     });
 }
 
@@ -568,6 +534,3 @@ macro_rules! try {
         Ok(x) => x,
     });
 }
-
-/// A result type that uses an incidents as `Err` case.
-pub type IResult<T> = Result<T, Incident>;
