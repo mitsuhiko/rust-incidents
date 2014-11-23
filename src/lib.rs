@@ -14,7 +14,7 @@
 //!
 //! Example:
 //!
-//! ``rust
+//! ```rust
 //! struct BadOperation {
 //!     desc: &str,
 //! }
