@@ -541,7 +541,7 @@ impl Traceback {
 /// function.
 pub struct Failure<E: Error> {
     #[cfg(ndebug)]
-    error: Option<Box<E>>,
+    error: Box<E>,
     #[cfg(not(ndebug))]
     traceback: Traceback,
 }
@@ -555,10 +555,7 @@ impl<E: Error> Deref<E> for Failure<E> {
 
     #[cfg(ndebug)]
     fn deref(&self) -> &E {
-        match self.error {
-            Some(ref val) => &**val,
-            None => panic!("Failure does not contain an error.")
-        }
+        &*self.error
     }
 }
 
@@ -610,7 +607,7 @@ impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
     #[cfg(ndebug)]
     fn construct_failure((err,): (E,), _: Option<LocationInfo>) -> Failure<T> {
         Failure {
-            error: Some(box FromError::from_error(err)),
+            error: box FromError::from_error(err),
         }
     }
 
@@ -632,7 +629,7 @@ impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Failure<C>)
     #[cfg(ndebug)]
     fn construct_failure((err, _): (E, Failure<C>), _: Option<LocationInfo>) -> Failure<T> {
         Failure {
-            error: Some(box FromError::from_error(err)),
+            error: box FromError::from_error(err),
         }
     }
 
