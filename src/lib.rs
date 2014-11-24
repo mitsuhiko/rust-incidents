@@ -541,7 +541,7 @@ impl Traceback {
 /// function.
 pub struct Failure<E: Error> {
     #[cfg(ndebug)]
-    error: Option<Box<E>>,
+    error: Option<E>,
     #[cfg(not(ndebug))]
     traceback: Traceback,
 }
@@ -556,7 +556,7 @@ impl<E: Error> Deref<E> for Failure<E> {
     #[cfg(ndebug)]
     fn deref(&self) -> &E {
         match self.error {
-            Some(ref val) => &**val,
+            Some(ref val) => &*val,
             None => panic!("Failure does not contain an error.")
         }
     }
@@ -571,7 +571,7 @@ impl<E: Error> Deref<E> for Failure<E> {
 /// This internally uses `TraceFormatter`.
 pub fn print_traceback<E: Error>(failure: &Failure<E>) {
     let mut fmt = TraceFormatter::new(std::io::stdio::stderr());
-    let _ = match Traceback::from_failure(failure) {
+    let _ = match Traceback::from_failure(&*failure) {
         Some(tb) => fmt.format_traces(tb),
         None => fmt.format_fallback_trace(&**failure as &Error),
     };
@@ -606,18 +606,18 @@ impl<E: Error> ConstructFailure<(E,)> for E {
     }
 }
 
-impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
+impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Box<Failure<T>> {
     #[cfg(ndebug)]
-    fn construct_failure((err,): (E,), _: Option<LocationInfo>) -> Failure<T> {
-        Failure {
-            error: Some(box FromError::from_error(err)),
+    fn construct_failure((err,): (E,), _: Option<LocationInfo>) -> Box<Failure<T>> {
+        box Failure {
+            error: Some(FromError::from_error(err)),
         }
     }
 
     #[cfg(not(ndebug))]
-    fn construct_failure((err,): (E,), loc: Option<LocationInfo>) -> Failure<T> {
+    fn construct_failure((err,): (E,), loc: Option<LocationInfo>) -> Box<Failure<T>> {
         let err: T = FromError::from_error(err);
-        Failure {
+        box Failure {
             traceback: Traceback {
                 frame: Some(box BasicErrorFrame {
                     error: err,
@@ -628,19 +628,19 @@ impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
     }
 }
 
-impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Failure<C>)> for Failure<T> {
+impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Box<Failure<C>>)> for Box<Failure<T>> {
     #[cfg(ndebug)]
-    fn construct_failure((err, _): (E, Failure<C>), _: Option<LocationInfo>) -> Failure<T> {
-        Failure {
-            error: Some(box FromError::from_error(err)),
+    fn construct_failure((err, _): (E, Box<Failure<C>>), _: Option<LocationInfo>) -> Box<Failure<T>> {
+        box Failure {
+            error: Some(FromError::from_error(err)),
         }
     }
 
     #[cfg(not(ndebug))]
-    fn construct_failure((err, cause): (E, Failure<C>), loc: Option<LocationInfo>) -> Failure<T> {
+    fn construct_failure((err, cause): (E, Box<Failure<C>>), loc: Option<LocationInfo>) -> Box<Failure<T>> {
         let err: T = FromError::from_error(err);
         let mut cause = cause;
-        Failure {
+        box Failure {
             traceback: Traceback {
                 frame: Some(box ErrorFrameWithCause {
                     error: err,
@@ -653,16 +653,16 @@ impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Failure<C>)
     }
 }
 
-impl<E: Error> ConstructFailure<(Failure<E>,)> for Failure<E> {
+impl<E: Error> ConstructFailure<(Box<Failure<E>>,)> for Box<Failure<E>> {
     #[cfg(ndebug)]
-    fn construct_failure((parent,): (Failure<E>,), _: Option<LocationInfo>) -> Failure<E> {
+    fn construct_failure((parent,): (Box<Failure<E>>,), _: Option<LocationInfo>) -> Box<Failure<E>> {
         parent
     }
 
     #[cfg(not(ndebug))]
-    fn construct_failure((parent,): (Failure<E>,), loc: Option<LocationInfo>) -> Failure<E> {
+    fn construct_failure((parent,): (Box<Failure<E>>,), loc: Option<LocationInfo>) -> Box<Failure<E>> {
         let mut parent = parent;
-        Failure {
+        box Failure {
             traceback: Traceback {
                 frame: Some(box PropagationFrame {
                     parent: parent.traceback.frame.take().expect(
@@ -732,7 +732,7 @@ macro_rules! try {
 }
 
 /// A result type which wraps the error in a failure.
-pub type FResult<T, E> = Result<T, Failure<E>>;
+pub type FResult<T, E> = Result<T, Box<Failure<E>>>;
 
 
 // local hack

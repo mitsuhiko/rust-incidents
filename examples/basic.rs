@@ -55,8 +55,8 @@ fn main() {
     let _ = test();
     match bubble() {
         Ok(x) => println!("Produced {}", x),
-        Err(ref err) => {
-            print_traceback(err);
+        Err(box err) => {
+            print_traceback(&err);
             match err.file {
                 Some(ref f) => println!("filename = {}", f.display()),
                 None => {}
