@@ -201,7 +201,7 @@ impl LocationInfo {
 /// Everything else is pretty much optional but it's recommended to implement
 /// as much as possible to aid the user for debugging.  Note that a lot of
 /// information can be computed lazily.
-pub trait Error: 'static + Send {
+pub trait Error: 'static + Send + Clone {
 
     /// The human readable name of the error.
     fn name(&self) -> &str;
@@ -380,7 +380,7 @@ impl Frame for PropagationFrame {
 /// builds they associate errors with as much debug information as
 /// possible.
 pub struct Traceback {
-    frame: Option<Box<Frame + Send>>,
+    frame: Box<Frame + Send>,
 }
 
 impl Traceback {
@@ -406,10 +406,7 @@ impl Traceback {
 
     /// Returns the first frame of the traceback.
     pub fn frame(&self) -> &Frame + Send {
-        match self.frame {
-            Some(ref x) => &**x,
-            None => panic!("frame went away")
-        }
+        &*self.frame
     }
 
     /// Returns the error of the traceback.
@@ -425,7 +422,7 @@ impl Traceback {
     /// println!("Error: {}", traceback.error().name());
     /// ```
     pub fn error(&self) -> &Error {
-        let mut ptr = self.frame.as_ref().map(|x| &**x);
+        let mut ptr = Some(&*self.frame);
         while let Some(frm) = ptr {
             match frm.error() {
                 Some(err) => { return err; }
@@ -437,7 +434,7 @@ impl Traceback {
 
     /// Returns the frame that contains the error.
     pub fn error_frame(&self) -> &Frame + Send {
-        let mut ptr = self.frame.as_ref().map(|x| &**x);
+        let mut ptr = Some(&*self.frame);
         while let Some(frm) = ptr {
             match frm.error() {
                 Some(_) => { return frm; }
@@ -492,7 +489,7 @@ impl Traceback {
 
     /// Gets the detail of the error.
     pub fn detail(&self) -> Option<String> {
-        let mut ptr = self.frame.as_ref().map(|x| &**x);
+        let mut ptr = Some(&*self.frame);
         while let Some(frm) = ptr {
             match frm.error() {
                 Some(err) => { return err.detail(); }
@@ -509,7 +506,7 @@ impl Traceback {
     /// in release builds.
     pub fn traceback(&self) -> Vec<(&Error, Vec<&Frame + Send>)> {
         let mut traces = vec![];
-        let mut ptr = self.frame.as_ref().map(|x| &**x);
+        let mut ptr = Some(&*self.frame);
 
         while let Some(frm) = ptr {
             if let Some((root, trace)) = frm.trace() {
@@ -603,6 +600,19 @@ impl<E: Error> ConstructFailure<(E,)> for E {
     }
 }
 
+impl<E: Error, D: Error+FromError<E>> ConstructFailure<(Failure<E>,)> for D {
+    #[cfg(ndebug)]
+    fn construct_failure((failure,): (Failure<E>,), _: Option<LocationInfo>) -> D {
+        FromError::from_error(*failure.error)
+    }
+
+    #[cfg(not(ndebug))]
+    fn construct_failure((failure,): (Failure<E>,), _: Option<LocationInfo>) -> D {
+        FromError::from_error(failure.traceback.error_as::<E>()
+                              .expect("Invalid or missing error").clone())
+    }
+}
+
 impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
     #[cfg(ndebug)]
     fn construct_failure((err,): (E,), _: Option<LocationInfo>) -> Failure<T> {
@@ -616,10 +626,10 @@ impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
         let err: T = FromError::from_error(err);
         Failure {
             traceback: Traceback {
-                frame: Some(box BasicErrorFrame {
+                frame: box BasicErrorFrame {
                     error: err,
                     location: loc,
-                } as Box<Frame + Send>)
+                } as Box<Frame + Send>
             }
         }
     }
@@ -636,15 +646,13 @@ impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Failure<C>)
     #[cfg(not(ndebug))]
     fn construct_failure((err, cause): (E, Failure<C>), loc: Option<LocationInfo>) -> Failure<T> {
         let err: T = FromError::from_error(err);
-        let mut cause = cause;
         Failure {
             traceback: Traceback {
-                frame: Some(box ErrorFrameWithCause {
+                frame: box ErrorFrameWithCause {
                     error: err,
-                    cause: cause.traceback.frame.take().expect(
-                        "attempted to use a failure as cause that was already used."),
+                    cause: cause.traceback.frame,
                     location: loc,
-                } as Box<Frame + Send>)
+                } as Box<Frame + Send>
             }
         }
     }
@@ -658,14 +666,12 @@ impl<E: Error> ConstructFailure<(Failure<E>,)> for Failure<E> {
 
     #[cfg(not(ndebug))]
     fn construct_failure((parent,): (Failure<E>,), loc: Option<LocationInfo>) -> Failure<E> {
-        let mut parent = parent;
         Failure {
             traceback: Traceback {
-                frame: Some(box PropagationFrame {
-                    parent: parent.traceback.frame.take().expect(
-                        "attempted to propagate a failure that was already propagated."),
+                frame: box PropagationFrame {
+                    parent: parent.traceback.frame,
                     location: loc,
-                } as Box<Frame + Send>)
+                } as Box<Frame + Send>
             }
         }
     }

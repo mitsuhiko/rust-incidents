@@ -6,6 +6,7 @@ extern crate incidents;
 
 use incidents::{Error, FResult, print_traceback};
 
+#[deriving(Clone)]
 struct BadBehavior;
 
 impl Error for BadBehavior {
@@ -14,6 +15,7 @@ impl Error for BadBehavior {
     }
 }
 
+#[deriving(Clone)]
 struct FileNotFound {
     file: Option<Path>,
 }
@@ -51,6 +53,11 @@ fn test() -> Result<(), BadBehavior> {
     Ok(())
 }
 
+fn downgrade() -> Result<(), FileNotFound> {
+    let _ = try!(bubble());
+    Ok(())
+}
+
 fn main() {
     let _ = test();
     match bubble() {
@@ -62,5 +69,10 @@ fn main() {
                 None => {}
             }
         }
+    }
+
+    match downgrade() {
+        Err(err) => println!("Error: {}", err.name()),
+        Ok(_) => {}
     }
 }
