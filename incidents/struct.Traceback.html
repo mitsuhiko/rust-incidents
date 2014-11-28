@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Traceback` struct in crate `incidents`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Traceback">
+
+    <title>incidents::Traceback - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'><a href='index.html'>incidents</a></p><div class='block struct'><h2>Structs</h2><a class='struct ' href='struct.Failure.html'>Failure</a><a class='struct ' href='struct.LocationInfo.html'>LocationInfo</a><a class='struct ' href='struct.TraceFormatter.html'>TraceFormatter</a><a class='struct current' href='struct.Traceback.html'>Traceback</a></div><div class='block trait'><h2>Traits</h2><a class='trait ' href='trait.ConstructFailure.html'>ConstructFailure</a><a class='trait ' href='trait.Error.html'>Error</a><a class='trait ' href='trait.ErrorExt.html'>ErrorExt</a><a class='trait ' href='trait.Frame.html'>Frame</a><a class='trait ' href='trait.FromError.html'>FromError</a></div><div class='block fn'><h2>Functions</h2><a class='fn ' href='fn.print_traceback.html'>print_traceback</a></div><div class='block macro'><h2>Macros</h2><a class='macro ' href='macro.fail!.html'>fail!</a><a class='macro ' href='macro.try!.html'>try!</a></div>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press 'S' to search, '?' for more options..."
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>incidents</a>::<wbr><a class='struct' href=''>Traceback</a><wbr></span><span class='out-of-band'><span id='render-detail'>
+            <a id="collapse-all" href="#">[-]
+            </a>&nbsp;<a id="expand-all" href="#">[+]</a>
+        </span><a id='src-787' href='../src/incidents/src/lib.rs.html#382-384'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Traceback {
+    // some fields omitted
+}</pre><div class='docblock'><p>Encapsulates errors.</p>
+
+<p>Tracebacks are generally only available in debug builds.  In debug
+builds they associate errors with as much debug information as
+possible.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><a class='stability Unmarked' title='No stability level'></a><code>impl <a class='struct' href='../incidents/struct.Traceback.html' title='incidents::Traceback'>Traceback</a></code></h3><div class='impl-items'><h4 id='method.from_failure' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.from_failure' class='fnname'>from_failure</a>&lt;E: <a class='trait' href='../incidents/trait.Error.html' title='incidents::Error'>Error</a>&gt;(failure: &amp;<a class='struct' href='../incidents/struct.Failure.html' title='incidents::Failure'>Failure</a>&lt;E&gt;) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;<a class='struct' href='../incidents/struct.Traceback.html' title='incidents::Traceback'>Traceback</a>&gt;</code></h4>
+<div class='docblock'><p>Return the traceback object from a failure.</p>
+
+<p>This will return a borrowed reference to the traceback contained
+in a failure.  This operation will return <code>None</code> for release builds
+for which a failure does not actually contain a traceback.</p>
+</div><h4 id='method.frame' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.frame' class='fnname'>frame</a>(&amp;self) -&gt; &amp;<a class='trait' href='../incidents/trait.Frame.html' title='incidents::Frame'>Frame</a> + <a class='trait' href='http://doc.rust-lang.org/nightly/core/kinds/trait.Send.html' title='core::kinds::Send'>Send</a></code></h4>
+<div class='docblock'><p>Returns the first frame of the traceback.</p>
+</div><h4 id='method.error' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.error' class='fnname'>error</a>(&amp;self) -&gt; &amp;<a class='trait' href='../incidents/trait.Error.html' title='incidents::Error'>Error</a></code></h4>
+<div class='docblock'><p>Returns the error of the traceback.</p>
+
+<p>Note that a traceback can be chained to another error behind the scenes.
+This will only ever give you one error and it will always be the most
+recent one.  To discover causes you will need to traverse the frames
+manually.</p>
+
+<p>Example usage:</p>
+<pre class='rust '>
+<span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;Error: {}&quot;</span>, <span class='ident'>traceback</span>.<span class='ident'>error</span>().<span class='ident'>name</span>());
+</pre>
+</div><h4 id='method.error_frame' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.error_frame' class='fnname'>error_frame</a>(&amp;self) -&gt; &amp;<a class='trait' href='../incidents/trait.Frame.html' title='incidents::Frame'>Frame</a> + <a class='trait' href='http://doc.rust-lang.org/nightly/core/kinds/trait.Send.html' title='core::kinds::Send'>Send</a></code></h4>
+<div class='docblock'><p>Returns the frame that contains the error.</p>
+</div><h4 id='method.error_as' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.error_as' class='fnname'>error_as</a>&lt;E: <a class='trait' href='../incidents/trait.Error.html' title='incidents::Error'>Error</a>&gt;(&amp;self) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;E&gt;</code></h4>
+<div class='docblock'><p>Returns the error as a pointer to a concrete type.</p>
+
+<p>Example usage:</p>
+<pre class='rust '>
+<span class='kw'>match</span> <span class='ident'>traceback</span>.<span class='ident'>error_as</span>::<span class='op'>&lt;</span><span class='ident'>ResourceNotFound</span><span class='op'>&gt;</span>() {
+    <span class='prelude-val'>Some</span>(<span class='ident'>rnf</span>) <span class='op'>=&gt;</span> {
+        <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;Resource not found: {}&quot;</span>, <span class='ident'>rnf</span>.<span class='ident'>resource</span>);
+    },
+    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {}
+}
+</pre>
+</div><h4 id='method.is' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.is' class='fnname'>is</a>&lt;E: <a class='trait' href='../incidents/trait.Error.html' title='incidents::Error'>Error</a>&gt;(&amp;self) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<div class='docblock'><p>Checks if the error is of a specific type.</p>
+
+<p>Example usage:</p>
+<pre class='rust '>
+<span class='kw'>if</span> <span class='ident'>traceback</span>.<span class='ident'>is</span>::<span class='op'>&lt;</span><span class='ident'>ResourceNotFound</span><span class='op'>&gt;</span>() {
+    <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;Looks like a resource is missing.&quot;</span>);
+}
+</pre>
+</div><h4 id='method.name' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.name' class='fnname'>name</a>(&amp;self) -&gt; &amp;<a href='http://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a></code></h4>
+<div class='docblock'><p>Shorthand to get the name of the error.</p>
+</div><h4 id='method.description' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.description' class='fnname'>description</a>(&amp;self) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;&amp;<a href='http://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>&gt;</code></h4>
+<div class='docblock'><p>Gets the description the error.</p>
+</div><h4 id='method.detail' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.detail' class='fnname'>detail</a>(&amp;self) -&gt; <a class='enum' href='http://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='http://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a>&gt;</code></h4>
+<div class='docblock'><p>Gets the detail of the error.</p>
+</div><h4 id='method.traceback' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.traceback' class='fnname'>traceback</a>(&amp;self) -&gt; <a class='struct' href='http://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a href='http://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(&amp;<a class='trait' href='../incidents/trait.Error.html' title='incidents::Error'>Error</a>, <a class='struct' href='http://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;&amp;<a class='trait' href='../incidents/trait.Frame.html' title='incidents::Frame'>Frame</a> + <a class='trait' href='http://doc.rust-lang.org/nightly/core/kinds/trait.Send.html' title='core::kinds::Send'>Send</a>&gt;)</a>&gt;</code></h4>
+<div class='docblock'><p>Returns the traces in this traceback.</p>
+
+<p>Keep in mind that it is entirely permissible for the return
+value to be an empty vector.  This can for instance happen
+in release builds.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div class="shortcuts">
+            <h1>Keyboard shortcuts</h1>
+            <dl>
+                <dt>?</dt>
+                <dd>Show this help dialog</dd>
+                <dt>S</dt>
+                <dd>Focus the search field</dd>
+                <dt>&larrb;</dt>
+                <dd>Move up in search results</dd>
+                <dt>&rarrb;</dt>
+                <dd>Move down in search results</dd>
+                <dt>&#9166;</dt>
+                <dd>Go to active search result</dd>
+            </dl>
+        </div>
+        <div class="infos">
+            <h1>Search tricks</h1>
+            <p>
+                Prefix searches with a type followed by a colon (e.g.
+                <code>fn:</code>) to restrict the search to a given type.
+            </p>
+            <p>
+                Accepted types are: <code>fn</code>, <code>mod</code>,
+                <code>struct</code>, <code>enum</code>,
+                <code>trait</code>, <code>typedef</code> (or
+                <code>tdef</code>).
+            </p>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "incidents";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `incidents` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, incidents">
+
+    <title>incidents - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'></p>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press 'S' to search, '?' for more options..."
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>incidents</a><wbr></span><span class='out-of-band'><a href='stability.html'>[stability]</a> <span id='render-detail'>
+            <a id="collapse-all" href="#">[-]
+            </a>&nbsp;<a id="expand-all" href="#">[+]</a>
+        </span><a id='src-0' href='../src/incidents/src/lib.rs.html#1-910'>[src]</a></span></h1>
+<div class='docblock'><p>Incidents is a library for Rust that explores error handling.  The
+idea is to eventually get an RFC together with the ideas and concepts
+of the library.</p>
+
+<h1 id="the-error-trait" class='section-header'><a
+                           href="#the-error-trait">The Error Trait</a></h1>
+<p>Errors are arbitrary, they just need to implement the <code>Error</code> trait.
+This trait currently differs from the one in the <code>std::error</code> module
+and has different associated functions.</p>
+
+<p>The bare minimum an error needs to implement is <code>name</code> which should
+be the capitalized name of the error as it should be displayed to a
+user if it appears in error messages.</p>
+
+<p>Example:</p>
+<pre class='rust '>
+<span class='kw'>struct</span> <span class='ident'>BadOperation</span> {
+    <span class='ident'>desc</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>,
+}
+
+<span class='kw'>impl</span> <span class='ident'>Error</span> <span class='kw'>for</span> <span class='ident'>BadOperation</span> {
+    <span class='kw'>fn</span> <span class='ident'>name</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>str</span> { <span class='string'>&quot;Bad Operation&quot;</span> }
+    <span class='kw'>fn</span> <span class='ident'>description</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>str</span><span class='op'>&gt;</span> { <span class='prelude-val'>Some</span>(<span class='self'>self</span>.<span class='ident'>desc</span>) }
+}
+</pre>
+
+<h1 id="failures" class='section-header'><a
+                           href="#failures">Failures</a></h1>
+<p>Incidents provides a special wrapper type called a <code>Failure&lt;T&gt;</code> which
+will automatically box an error.  In addition to moving the error to
+the heap, which will keep results small, this also adds automatic debug
+helpers for debug builds.  In release the failure is represented as a
+simple box, whereas in debug it actually builds a <code>Traceback</code> behind
+the scenes that aids debugging.</p>
+
+<p>A failure can be dereferenced which will return the error.</p>
+
+<h1 id="throwing-errors" class='section-header'><a
+                           href="#throwing-errors">Throwing Errors</a></h1>
+<p>Errors can be thrown with the <code>fail!</code> macro and be automatically
+propagated with the <code>try!</code> macro.  For this to work the return value
+needs to be a <code>Result</code> with a <code>Failure&lt;E: Error&gt;</code> or <code>Error</code> on the
+error side.  For the latter a <code>FResult</code> is provided.</p>
+
+<p>Example:</p>
+<pre class='rust '>
+<span class='kw'>fn</span> <span class='ident'>function_that_fails</span>(<span class='ident'>good</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>FResult</span><span class='op'>&lt;</span><span class='ident'>int</span>, <span class='ident'>TheError</span><span class='op'>&gt;</span> {
+    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>good</span> {
+        <span class='macro'>fail</span><span class='macro'>!</span>(<span class='ident'>TheError</span> { <span class='ident'>desc</span>: <span class='string'>&quot;something went wrong&quot;</span> });
+    }
+    <span class='prelude-val'>Ok</span>(<span class='number'>23</span>)
+}
+
+<span class='kw'>fn</span> <span class='ident'>function_that_tries</span>() <span class='op'>-&gt;</span> <span class='ident'>FResult</span><span class='op'>&lt;</span><span class='ident'>int</span>, <span class='ident'>TheError</span><span class='op'>&gt;</span> {
+    <span class='kw'>let</span> <span class='ident'>rv</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>function_that_fails</span>());
+    <span class='prelude-val'>Ok</span>(<span class='ident'>rv</span> <span class='op'>+</span> <span class='number'>42</span>)
+}
+</pre>
+
+<h1 id="handling-errors" class='section-header'><a
+                           href="#handling-errors">Handling Errors</a></h1>
+<p>Errors that are in failures can be handled very transparently.  The
+failure is strongly typed and derefs into the actual error:</p>
+<pre class='rust '>
+<span class='kw'>fn</span> <span class='ident'>function_that_handles</span>() {
+    <span class='kw'>match</span> <span class='ident'>function_that_fails</span>() {
+        <span class='prelude-val'>Ok</span>(<span class='ident'>result</span>) <span class='op'>=&gt;</span> {
+            <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;The result: {}&quot;</span>, <span class='ident'>result</span>);
+        }
+        <span class='prelude-val'>Err</span>(<span class='kw-2'>ref</span> <span class='ident'>err</span>) <span class='op'>=&gt;</span> {
+            <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;Error description: {}&quot;</span>, <span class='ident'>err</span>.<span class='ident'>desc</span>);
+        }
+    }
+}
+</pre>
+
+<h1 id="error-conversion" class='section-header'><a
+                           href="#error-conversion">Error Conversion</a></h1>
+<p>Errors can be converted through the use of the <code>FromError</code> trait.  This
+allows a library to easily work with other libraries that it might use
+internally and give the user a consistent error experience.</p>
+
+<p>Example:</p>
+<pre class='rust '>
+<span class='kw'>enum</span> <span class='ident'>MyError</span> {
+    <span class='ident'>BadOperation</span>,
+    <span class='ident'>IoError</span>(<span class='ident'>io</span>::<span class='ident'>IoError</span>),
+}
+
+<span class='kw'>impl</span> <span class='ident'>Error</span> <span class='kw'>for</span> <span class='ident'>MyError</span> {
+    <span class='kw'>fn</span> <span class='ident'>name</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>str</span> {
+        <span class='kw'>match</span> <span class='op'>*</span><span class='self'>self</span> {
+            <span class='ident'>MyError</span>::<span class='ident'>BadOperation</span> <span class='op'>=&gt;</span> <span class='string'>&quot;Bad Operation&quot;</span>,
+            <span class='ident'>MyError</span>::<span class='ident'>IoError</span>(<span class='kw-2'>ref</span> <span class='ident'>err</span>) <span class='op'>=&gt;</span> <span class='ident'>err</span>.<span class='ident'>name</span>(),
+        }
+    }
+}
+
+<span class='kw'>impl</span> <span class='ident'>FromError</span><span class='op'>&lt;</span><span class='ident'>IoError</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>MyError</span> {
+    <span class='kw'>fn</span> <span class='ident'>from_error</span>(<span class='ident'>err</span>: <span class='ident'>io</span>::<span class='ident'>IoError</span>) <span class='op'>-&gt;</span> <span class='ident'>MyError</span> {
+        <span class='ident'>MyError</span>::<span class='ident'>IoError</span>(<span class='ident'>err</span>)
+    }
+}
+</pre>
+
+<h1 id="tracebacks" class='section-header'><a
+                           href="#tracebacks">Tracebacks</a></h1>
+<p>In debug builds tracebacks are available.  At any point can you call
+<code>Traceback::from_failure()</code> with a failure to get the traceback.  This
+also works in release builds but the return value will be <code>None</code>.</p>
+
+<p>Tracebacks can also be printed with <code>print_traceback</code> and <code>TraceFormatter</code>.
+This looks a bit like Python tracebacks:</p>
+<pre class='rust '>
+<span class='ident'>Traceback</span> (<span class='ident'>most</span> <span class='ident'>recent</span> <span class='ident'>cause</span> <span class='ident'>last</span>):
+  <span class='ident'>File</span> <span class='string'>&quot;/Users/mitsuhiko/Development/rust-incidents/examples/basic.rs&quot;</span>, <span class='ident'>line</span> <span class='number'>37</span>
+    <span class='macro'>fail</span><span class='macro'>!</span>(<span class='ident'>FileNotFound</span> { <span class='ident'>file</span>: <span class='prelude-val'>Some</span>(<span class='ident'>Path</span>::<span class='ident'>new</span>(<span class='string'>&quot;/missing.txt&quot;</span>)) });
+  <span class='ident'>File</span> <span class='string'>&quot;/Users/mitsuhiko/Development/rust-incidents/examples/basic.rs&quot;</span>, <span class='ident'>line</span> <span class='number'>41</span>
+    <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>testing</span>());
+<span class='ident'>File</span> <span class='ident'>Not</span> <span class='ident'>Found</span>: <span class='ident'>the</span> <span class='ident'>file</span> <span class='ident'>does</span> <span class='ident'>not</span> <span class='ident'>exist</span> (<span class='ident'>file</span><span class='op'>=</span><span class='op'>/</span><span class='ident'>missing</span>.<span class='ident'>txt</span>)
+</pre>
+</div><h2 id='macros' class='section-header'><a href="#macros">Macros</a></h2>
+<table>
+                    <tr>
+                        <td><a class='stability Unmarked' title='No stability level'></a><a class='macro' href='macro.fail!.html'
+                               title='incidents::fail!'>fail!</a></td>
+                        <td class='docblock short'><p>Fails with an error.</p>
+</td>
+                    </tr>
+                
+                    <tr>
+                        <td><a class='stability Unmarked' title='No stability level'></a><a class='macro' href='macro.try!.html'
+                               title='incidents::try!'>try!</a></td>
+                        <td class='docblock short'><p>Tries to unwrap the result or propagates an error.</p>
+</td>
+                    </tr>
+                </table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                    <tr>
+                        <td><a class='stability Unmarked' title='No stability level'></a><a class='struct' href='struct.Failure.html'
+                               title='incidents::Failure'>Failure</a></td>
+                        <td class='docblock short'><p>A failure wraps an error in a box.</p>
+</td>
+                    </tr>
+                
+                    <tr>
+                        <td><a class='stability Unmarked' title='No stability level'></a><a class='struct' href='struct.LocationInfo.html'
+                               title='incidents::LocationInfo'>LocationInfo</a></td>
+                        <td class='docblock short'><p>This struct provides error location information.</p>
+</td>
+                    </tr>
+                
+                    <tr>
+                        <td><a class='stability Unmarked' title='No stability level'></a><a class='struct' href='struct.TraceFormatter.html'
+                               title='incidents::TraceFormatter'>TraceFormatter</a></td>
+                        <td class='docblock short'><p>Formats tracebacks.</p>
+</td>
+                    </tr>
+                
+                    <tr>
+                        <td><a class='stability Unmarked' title='No stability level'></a><a class='struct' href='struct.Traceback.html'
+                               title='incidents::Traceback'>Traceback</a></td>
+                        <td class='docblock short'><p>Encapsulates errors.</p>
+</td>
+                    </tr>
+                </table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                    <tr>
+                        <td><a class='stability Unmarked' title='No stability level'></a><a class='trait' href='trait.ConstructFailure.html'
+                               title='incidents::ConstructFailure'>ConstructFailure</a></td>
+                        <td class='docblock short'><p>A trait that is used to construct failures.</p>
+</td>
+                    </tr>
+                
+                    <tr>
+                        <td><a class='stability Unmarked' title='No stability level'></a><a class='trait' href='trait.Error.html'
+                               title='incidents::Error'>Error</a></td>
+                        <td class='docblock short'><p>Represents an error.</p>
+</td>
+                    </tr>
+                
+                    <tr>
+                        <td><a class='stability Unmarked' title='No stability level'></a><a class='trait' href='trait.ErrorExt.html'
+                               title='incidents::ErrorExt'>ErrorExt</a></td>
+                        <td class='docblock short'><p>Adds dynamic helpers to errors.</p>
+</td>
+                    </tr>
+                
+                    <tr>
+                        <td><a class='stability Unmarked' title='No stability level'></a><a class='trait' href='trait.Frame.html'
+                               title='incidents::Frame'>Frame</a></td>
+                        <td class='docblock short'><p>Frames are an internal construct in incidents for debugging.</p>
+</td>
+                    </tr>
+                
+                    <tr>
+                        <td><a class='stability Unmarked' title='No stability level'></a><a class='trait' href='trait.FromError.html'
+                               title='incidents::FromError'>FromError</a></td>
+                        <td class='docblock short'><p>A trait for types that can be converted from a given error type <code>E</code>.</p>
+</td>
+                    </tr>
+                </table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                    <tr>
+                        <td><a class='stability Unmarked' title='No stability level'></a><a class='fn' href='fn.print_traceback.html'
+                               title='incidents::print_traceback'>print_traceback</a></td>
+                        <td class='docblock short'><p>Print the traceback of a failure.</p>
+</td>
+                    </tr>
+                </table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table>
+                    <tr>
+                        <td><a class='stability Unmarked' title='No stability level'></a><a class='type' href='type.FResult.html'
+                               title='incidents::FResult'>FResult</a></td>
+                        <td class='docblock short'><p>A result type which wraps the error in a failure.</p>
+</td>
+                    </tr>
+                </table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div class="shortcuts">
+            <h1>Keyboard shortcuts</h1>
+            <dl>
+                <dt>?</dt>
+                <dd>Show this help dialog</dd>
+                <dt>S</dt>
+                <dd>Focus the search field</dd>
+                <dt>&larrb;</dt>
+                <dd>Move up in search results</dd>
+                <dt>&rarrb;</dt>
+                <dd>Move down in search results</dd>
+                <dt>&#9166;</dt>
+                <dd>Go to active search result</dd>
+            </dl>
+        </div>
+        <div class="infos">
+            <h1>Search tricks</h1>
+            <p>
+                Prefix searches with a type followed by a colon (e.g.
+                <code>fn:</code>) to restrict the search to a given type.
+            </p>
+            <p>
+                Accepted types are: <code>fn</code>, <code>mod</code>,
+                <code>struct</code>, <code>enum</code>,
+                <code>trait</code>, <code>typedef</code> (or
+                <code>tdef</code>).
+            </p>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "incidents";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `LocationInfo` struct in crate `incidents`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, LocationInfo">
+
+    <title>incidents::LocationInfo - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'><a href='index.html'>incidents</a></p><div class='block struct'><h2>Structs</h2><a class='struct ' href='struct.Failure.html'>Failure</a><a class='struct current' href='struct.LocationInfo.html'>LocationInfo</a><a class='struct ' href='struct.TraceFormatter.html'>TraceFormatter</a><a class='struct ' href='struct.Traceback.html'>Traceback</a></div><div class='block trait'><h2>Traits</h2><a class='trait ' href='trait.ConstructFailure.html'>ConstructFailure</a><a class='trait ' href='trait.Error.html'>Error</a><a class='trait ' href='trait.ErrorExt.html'>ErrorExt</a><a class='trait ' href='trait.Frame.html'>Frame</a><a class='trait ' href='trait.FromError.html'>FromError</a></div><div class='block fn'><h2>Functions</h2><a class='fn ' href='fn.print_traceback.html'>print_traceback</a></div><div class='block macro'><h2>Macros</h2><a class='macro ' href='macro.fail!.html'>fail!</a><a class='macro ' href='macro.try!.html'>try!</a></div>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press 'S' to search, '?' for more options..."
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>incidents</a>::<wbr><a class='struct' href=''>LocationInfo</a><wbr></span><span class='out-of-band'><span id='render-detail'>
+            <a id="collapse-all" href="#">[-]
+            </a>&nbsp;<a id="expand-all" href="#">[+]</a>
+        </span><a id='src-9' href='../src/incidents/src/lib.rs.html#149-152'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct LocationInfo {
+    // some fields omitted
+}</pre><div class='docblock'><p>This struct provides error location information.</p>
+
+<p>This is intentionally kept private internally so that at a later point
+it can be changed to not actually contain the debug information but
+to only hold a frozen PC value and later read the debug info from
+DWARF.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><a class='stability Unmarked' title='No stability level'></a><code>impl <a class='struct' href='../incidents/struct.LocationInfo.html' title='incidents::LocationInfo'>LocationInfo</a></code></h3><div class='impl-items'><h4 id='method.new' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.new' class='fnname'>new</a>(file: &amp;<a href='http://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>, line: <a href='http://doc.rust-lang.org/nightly/std/primitive.uint.html'>uint</a>) -&gt; <a class='struct' href='../incidents/struct.LocationInfo.html' title='incidents::LocationInfo'>LocationInfo</a></code></h4>
+<div class='docblock'><p>Creates a new location info from specific values.</p>
+</div><h4 id='method.get_source_line' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.get_source_line' class='fnname'>get_source_line</a>(&amp;self) -&gt; <a class='type' href='http://doc.rust-lang.org/nightly/std/io/type.IoResult.html' title='std::io::IoResult'>IoResult</a>&lt;<a class='struct' href='http://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a>&gt;</code></h4>
+<div class='docblock'><p>Returns the source line which caused the error.</p>
+
+<p>This loads the file from the file system and fetches the line
+mentioned in the location info.  This might be quite an
+expensive operation and it can also return invalid data
+in case the file was changed after the compilation took place.</p>
+</div><h4 id='method.file' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.file' class='fnname'>file</a>(&amp;self) -&gt; &amp;<a class='struct' href='http://doc.rust-lang.org/nightly/std/path/posix/struct.Path.html' title='std::path::posix::Path'>Path</a></code></h4>
+<div class='docblock'><p>Get the filename of this location info.</p>
+</div><h4 id='method.line' class='method'><a class='stability Unmarked' title='No stability level'></a><code>fn <a href='#method.line' class='fnname'>line</a>(&amp;self) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.uint.html'>uint</a></code></h4>
+<div class='docblock'><p>Get the line number of this location info.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 id='derived_implementations'>Derived Implementations </h3><h3 class='impl'><a class='stability Unmarked' title='No stability level'></a><code>impl <a class='trait' href='http://doc.rust-lang.org/nightly/core/kinds/trait.Send.html' title='core::kinds::Send'>Send</a> for <a class='struct' href='../incidents/struct.LocationInfo.html' title='incidents::LocationInfo'>LocationInfo</a></code></h3><div class='impl-items'></div><h3 class='impl'><a class='stability Unmarked' title='No stability level'></a><code>impl <a class='trait' href='http://doc.rust-lang.org/nightly/core/cmp/trait.Eq.html' title='core::cmp::Eq'>Eq</a> for <a class='struct' href='../incidents/struct.LocationInfo.html' title='incidents::LocationInfo'>LocationInfo</a></code></h3><div class='impl-items'><h4 id='method.assert_receiver_is_total_eq' class='tymethod'><a class='stability Unstable' title='Unstable: Definition may change slightly after trait reform'></a><code>fn <a href='#tymethod.assert_receiver_is_total_eq' class='fnname'>assert_receiver_is_total_eq</a>(&amp;self)</code></h4>
+</div><h3 class='impl'><a class='stability Unmarked' title='No stability level'></a><code>impl <a class='trait' href='http://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html' title='core::cmp::PartialEq'>PartialEq</a> for <a class='struct' href='../incidents/struct.LocationInfo.html' title='incidents::LocationInfo'>LocationInfo</a></code></h3><div class='impl-items'><h4 id='method.eq' class='method'><a class='stability Unstable' title='Unstable: Definition may change slightly after trait reform'></a><code>fn <a href='#method.eq' class='fnname'>eq</a>(&amp;self, __arg_0: &amp;<a class='struct' href='../incidents/struct.LocationInfo.html' title='incidents::LocationInfo'>LocationInfo</a>) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<h4 id='method.ne' class='method'><a class='stability Unstable' title='Unstable: Definition may change slightly after trait reform'></a><code>fn <a href='#method.ne' class='fnname'>ne</a>(&amp;self, __arg_0: &amp;<a class='struct' href='../incidents/struct.LocationInfo.html' title='incidents::LocationInfo'>LocationInfo</a>) -&gt; <a href='http://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+</div><h3 class='impl'><a class='stability Unmarked' title='No stability level'></a><code>impl <a class='trait' href='http://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> for <a class='struct' href='../incidents/struct.LocationInfo.html' title='incidents::LocationInfo'>LocationInfo</a></code></h3><div class='impl-items'><h4 id='method.clone' class='method'><a class='stability Unstable' title='Unstable'></a><code>fn <a href='#method.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class='struct' href='../incidents/struct.LocationInfo.html' title='incidents::LocationInfo'>LocationInfo</a></code></h4>
+<h4 id='method.clone_from' class='tymethod'><a class='stability Experimental' title='Experimental: this function is mostly unused'></a><code>fn <a href='#tymethod.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: &amp;Self)</code></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div class="shortcuts">
+            <h1>Keyboard shortcuts</h1>
+            <dl>
+                <dt>?</dt>
+                <dd>Show this help dialog</dd>
+                <dt>S</dt>
+                <dd>Focus the search field</dd>
+                <dt>&larrb;</dt>
+                <dd>Move up in search results</dd>
+                <dt>&rarrb;</dt>
+                <dd>Move down in search results</dd>
+                <dt>&#9166;</dt>
+                <dd>Go to active search result</dd>
+            </dl>
+        </div>
+        <div class="infos">
+            <h1>Search tricks</h1>
+            <p>
+                Prefix searches with a type followed by a colon (e.g.
+                <code>fn:</code>) to restrict the search to a given type.
+            </p>
+            <p>
+                Accepted types are: <code>fn</code>, <code>mod</code>,
+                <code>struct</code>, <code>enum</code>,
+                <code>trait</code>, <code>typedef</code> (or
+                <code>tdef</code>).
+            </p>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "incidents";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>
