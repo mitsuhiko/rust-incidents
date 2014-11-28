@@ -658,6 +658,13 @@ impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Failure<C>)
     }
 }
 
+impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, C)> for Failure<T> {
+    fn construct_failure((err, cause): (E, C), loc: Option<LocationInfo>) -> Failure<T> {
+        let fc : Failure<C> = ConstructFailure::construct_failure((cause,), None);
+        ConstructFailure::construct_failure((err, fc), loc)
+    }
+}
+
 impl<E: Error> ConstructFailure<(Failure<E>,)> for Failure<E> {
     #[cfg(ndebug)]
     fn construct_failure((parent,): (Failure<E>,), _: Option<LocationInfo>) -> Failure<E> {
