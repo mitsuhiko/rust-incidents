@@ -126,8 +126,6 @@
 //! ```
 #![crate_name = "incidents"]
 #![crate_type = "lib"]
-#![license = "BSD"]
-#![comment = "Rust standardized error handling."]
 
 #![deny(non_camel_case_types)]
 #![feature(macro_rules)]
@@ -201,7 +199,7 @@ impl LocationInfo {
 /// Everything else is pretty much optional but it's recommended to implement
 /// as much as possible to aid the user for debugging.  Note that a lot of
 /// information can be computed lazily.
-pub trait Error: 'static + Send + Clone {
+pub trait Error: Send + Clone {
 
     /// The human readable name of the error.
     fn name(&self) -> &str;
@@ -275,23 +273,23 @@ pub trait Frame: Send {
     /// If the frame was caused by another frame, this returns a reference
     /// to it.  This is used if an error gets handled by failing with
     /// another error.
-    fn cause_frame(&self) -> Option<&Frame + Send> {
+    fn cause_frame(&self) -> Option<&Frame> {
         None
     }
 
     /// If the frame is linked directly to another frame, this returns a
     /// reference to it.  This will never be the cause frame.
-    fn previous_frame(&self) -> Option<&Frame + Send> {
+    fn previous_frame(&self) -> Option<&Frame> {
         None
     }
 
     /// If it is possible to construct a trace from this frame, it will
     /// return the error and the trace to it.  Note that this is not always
     /// possible.
-    fn trace(&self) -> Option<(&Error, Vec<&Frame + Send>)> {
+    fn trace(&self) -> Option<(&Error, Vec<&Frame>)> {
         let mut root = None;
         let mut causes = vec![];
-        let mut ptr = Some(&*self as &Frame + Send);
+        let mut ptr = Some(&*self as &Frame);
 
         while let Some(frm) = ptr {
             causes.push(frm);
@@ -327,13 +325,13 @@ struct BasicErrorFrame<E: Error> {
 #[cfg(not(ndebug))]
 struct ErrorFrameWithCause<E: Error> {
     error: E,
-    cause: Box<Frame + Send>,
+    cause: Box<Frame>,
     location: Option<LocationInfo>,
 }
 
 #[cfg(not(ndebug))]
 struct PropagationFrame {
-    parent: Box<Frame + Send>,
+    parent: Box<Frame>,
     location: Option<LocationInfo>,
 }
 
@@ -358,7 +356,7 @@ impl<E: Error> Frame for ErrorFrameWithCause<E> {
         self.location.as_ref()
     }
 
-    fn cause_frame(&self) -> Option<&Frame + Send> {
+    fn cause_frame(&self) -> Option<&Frame> {
         Some(&*self.cause)
     }
 }
@@ -369,7 +367,7 @@ impl Frame for PropagationFrame {
         self.location.as_ref()
     }
 
-    fn previous_frame(&self) -> Option<&Frame + Send> {
+    fn previous_frame(&self) -> Option<&Frame> {
         Some(&*self.parent)
     }
 }
@@ -380,7 +378,7 @@ impl Frame for PropagationFrame {
 /// builds they associate errors with as much debug information as
 /// possible.
 pub struct Traceback {
-    frame: Box<Frame + Send>,
+    frame: Box<Frame>,
 }
 
 impl Traceback {
@@ -405,7 +403,7 @@ impl Traceback {
     }
 
     /// Returns the first frame of the traceback.
-    pub fn frame(&self) -> &Frame + Send {
+    pub fn frame(&self) -> &Frame {
         &*self.frame
     }
 
@@ -433,7 +431,7 @@ impl Traceback {
     }
 
     /// Returns the frame that contains the error.
-    pub fn error_frame(&self) -> &Frame + Send {
+    pub fn error_frame(&self) -> &Frame {
         let mut ptr = Some(&*self.frame);
         while let Some(frm) = ptr {
             match frm.error() {
@@ -504,7 +502,7 @@ impl Traceback {
     /// Keep in mind that it is entirely permissible for the return
     /// value to be an empty vector.  This can for instance happen
     /// in release builds.
-    pub fn traceback(&self) -> Vec<(&Error, Vec<&Frame + Send>)> {
+    pub fn traceback(&self) -> Vec<(&Error, Vec<&Frame>)> {
         let mut traces = vec![];
         let mut ptr = Some(&*self.frame);
 
@@ -629,7 +627,7 @@ impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
                 frame: box BasicErrorFrame {
                     error: err,
                     location: loc,
-                } as Box<Frame + Send>
+                } as Box<Frame>
             }
         }
     }
@@ -652,7 +650,7 @@ impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Failure<C>)
                     error: err,
                     cause: cause.traceback.frame,
                     location: loc,
-                } as Box<Frame + Send>
+                } as Box<Frame>
             }
         }
     }
@@ -678,7 +676,7 @@ impl<E: Error> ConstructFailure<(Failure<E>,)> for Failure<E> {
                 frame: box PropagationFrame {
                     parent: parent.traceback.frame,
                     location: loc,
-                } as Box<Frame + Send>
+                } as Box<Frame>
             }
         }
     }
