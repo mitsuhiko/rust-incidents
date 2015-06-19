@@ -124,18 +124,13 @@
 //!     try!(testing());
 //! File Not Found: the file does not exist (file=/missing.txt)
 //! ```
-#![crate_name = "incidents"]
-#![crate_type = "lib"]
-
 #![deny(non_camel_case_types)]
-#![feature(macro_rules)]
-#![feature(associated_types)]
-#![feature(while_let)]
-#![feature(if_let)]
 
-use std::{raw, mem, io};
-use std::intrinsics::TypeId;
-
+use std::{raw, mem, io, fs};
+use std::io::prelude::*;
+use std::ops::Deref;
+use std::path::PathBuf;
+use std::any::TypeId;
 
 /// This struct provides error location information.
 ///
@@ -143,18 +138,18 @@ use std::intrinsics::TypeId;
 /// it can be changed to not actually contain the debug information but
 /// to only hold a frozen PC value and later read the debug info from
 /// DWARF.
-#[deriving(Clone, PartialEq, Eq, Send)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct LocationInfo {
-    file: Path,
-    line: uint,
+    file: PathBuf,
+    line: u32,
 }
 
 impl LocationInfo {
 
     /// Creates a new location info from specific values.
-    pub fn new(file: &str, line: uint) -> LocationInfo {
+    pub fn new(file: &str, line: u32) -> LocationInfo {
         LocationInfo {
-            file: Path::new(file),
+            file: PathBuf::new(file),
             line: line,
         }
     }
@@ -165,17 +160,17 @@ impl LocationInfo {
     /// mentioned in the location info.  This might be quite an
     /// expensive operation and it can also return invalid data
     /// in case the file was changed after the compilation took place.
-    pub fn get_source_line(&self) -> io::IoResult<String> {
+    pub fn get_source_line(&self) -> io::Result<String> {
         // can't use try! here because of bootstrapping issues.
-        let file = match io::File::open(&self.file) {
+        let file = match fs::File::open(&self.file) {
             Err(err) => { return Err(err); },
             Ok(f) => f,
         };
-        let mut reader = io::BufferedReader::new(file);
+        let mut reader = io::BufReader::new(file);
         match reader.lines().skip(self.line - 1).next() {
             Some(Ok(line)) => Ok(line),
-            _ => Err(io::IoError {
-                kind: io::EndOfFile,
+            _ => Err(io::Error {
+                kind: io::ErrorKind::EndOfFile,
                 desc: "Reached end of file unexpectedly",
                 detail: None,
             }),
@@ -183,12 +178,12 @@ impl LocationInfo {
     }
 
     /// Get the filename of this location info.
-    pub fn file(&self) -> &Path {
+    pub fn file(&self) -> &PathBuf {
         &self.file
     }
 
     /// Get the line number of this location info.
-    pub fn line(&self) -> uint {
+    pub fn line(&self) -> u32 {
         self.line
     }
 }
@@ -199,7 +194,7 @@ impl LocationInfo {
 /// Everything else is pretty much optional but it's recommended to implement
 /// as much as possible to aid the user for debugging.  Note that a lot of
 /// information can be computed lazily.
-pub trait Error: Send + Clone {
+pub trait Error: Send {
 
     /// The human readable name of the error.
     fn name(&self) -> &str;
@@ -538,10 +533,13 @@ pub struct Failure<E: Error> {
     #[cfg(ndebug)]
     error: Box<E>,
     #[cfg(not(ndebug))]
+    grr: std::marker::PhantomData<E>,
+    #[cfg(not(ndebug))]
     traceback: Traceback,
 }
 
-impl<E: Error> Deref<E> for Failure<E> {
+impl<E: Error> Deref for Failure<E> {
+    type Target = E;
     #[cfg(not(ndebug))]
     fn deref(&self) -> &E {
         self.traceback.error_as().expect(
@@ -559,7 +557,7 @@ impl<E: Error> Deref<E> for Failure<E> {
 /// In release builds this will not contain an actual traceback but
 /// an emulation based on the information that is available on the
 /// error itself.
-/// 
+///
 /// This internally uses `TraceFormatter`.
 pub fn print_traceback<E: Error>(failure: &Failure<E>) {
     let mut fmt = TraceFormatter::new(std::io::stdio::stderr());
@@ -615,7 +613,7 @@ impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
     #[cfg(ndebug)]
     fn construct_failure((err,): (E,), _: Option<LocationInfo>) -> Failure<T> {
         Failure {
-            error: box FromError::from_error(err),
+            error: Box::new(FromError::from_error(err)),
         }
     }
 
@@ -624,10 +622,10 @@ impl<E: Error, T: Error+FromError<E>> ConstructFailure<(E,)> for Failure<T> {
         let err: T = FromError::from_error(err);
         Failure {
             traceback: Traceback {
-                frame: box BasicErrorFrame {
+                frame: Box::new(BasicErrorFrame {
                     error: err,
                     location: loc,
-                } as Box<Frame>
+                })// as Box<Frame>
             }
         }
     }
@@ -637,7 +635,7 @@ impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Failure<C>)
     #[cfg(ndebug)]
     fn construct_failure((err, _): (E, Failure<C>), _: Option<LocationInfo>) -> Failure<T> {
         Failure {
-            error: box FromError::from_error(err),
+            error: Box::new(FromError::from_error(err)),
         }
     }
 
@@ -645,12 +643,13 @@ impl<E: Error, C: Error, T: Error+FromError<E>> ConstructFailure<(E, Failure<C>)
     fn construct_failure((err, cause): (E, Failure<C>), loc: Option<LocationInfo>) -> Failure<T> {
         let err: T = FromError::from_error(err);
         Failure {
+            grr: std::marker::PhantomData,
             traceback: Traceback {
-                frame: box ErrorFrameWithCause {
+                frame: Box::new(ErrorFrameWithCause {
                     error: err,
                     cause: cause.traceback.frame,
                     location: loc,
-                } as Box<Frame>
+                })// as Box<Frame>
             }
         }
     }
@@ -672,11 +671,12 @@ impl<E: Error> ConstructFailure<(Failure<E>,)> for Failure<E> {
     #[cfg(not(ndebug))]
     fn construct_failure((parent,): (Failure<E>,), loc: Option<LocationInfo>) -> Failure<E> {
         Failure {
+            grr: std::marker::PhantomData,
             traceback: Traceback {
-                frame: box PropagationFrame {
+                frame: Box::new(PropagationFrame {
                     parent: parent.traceback.frame,
                     location: loc,
-                } as Box<Frame>
+                })// as Box<Frame>
             }
         }
     }
@@ -751,34 +751,33 @@ mod incidents {
 
 //// Standard Implementations ///////////////////////////////////////////
 
-impl Error for io::IoError {
+impl Error for io::Error {
     fn name(&self) -> &str {
-        match self.kind {
-            io::IoErrorKind::OtherIoError => "IO Error",
-            io::IoErrorKind::EndOfFile => "End Of File",
-            io::IoErrorKind::FileNotFound => "File Not Found",
-            io::IoErrorKind::PermissionDenied => "Permission Denied",
-            io::IoErrorKind::ConnectionFailed => "Connection Failed",
-            io::IoErrorKind::Closed => "File Closed",
-            io::IoErrorKind::ConnectionRefused => "Connection Refused",
-            io::IoErrorKind::ConnectionReset => "Connection Reset",
-            io::IoErrorKind::ConnectionAborted => "Connection Aborted",
-            io::IoErrorKind::NotConnected => "Not Connected",
-            io::IoErrorKind::BrokenPipe => "Broken Pipe",
-            io::IoErrorKind::PathAlreadyExists => "Path Already Exists",
-            io::IoErrorKind::PathDoesntExist => "Path Does Not Exist",
-            io::IoErrorKind::MismatchedFileTypeForOperation => "Mismatched File Type",
-            io::IoErrorKind::ResourceUnavailable => "Resource Unavailable",
-            io::IoErrorKind::IoUnavailable => "IO Unavailable",
-            io::IoErrorKind::InvalidInput => "Invalid Input",
-            io::IoErrorKind::TimedOut => "Timed Out",
-            io::IoErrorKind::ShortWrite(_) => "Short Write",
-            io::IoErrorKind::NoProgress => "No Progress",
+        match self.kind() {
+            io::ErrorKind::NotFound => "Entity not found",
+            io::ErrorKind::PermissionDenied => "Permission denied",
+            io::ErrorKind::ConnectionRefused => "Connection refused",
+            io::ErrorKind::ConnectionReset => "Connection reset",
+            io::ErrorKind::ConnectionAborted => "Connection aborted",
+            io::ErrorKind::NotConnected => "Not connected",
+            io::ErrorKind::AddrInUse => "Address in use",
+            io::ErrorKind::AddrNotAvailable => "Address not available",
+            io::ErrorKind::BrokenPipe => "Broken pipe",
+            io::ErrorKind::AlreadyExists => "Entity already exists",
+            io::ErrorKind::WouldBlock => "Operation would block",
+            io::ErrorKind::InvalidInput => "Invalid input",
+            io::ErrorKind::InvalidData => "Invalid data",
+            io::ErrorKind::TimedOut => "Operation timed out",
+            io::ErrorKind::WriteZero => "Wrote zero bytes",
+            io::ErrorKind::Interrupted => "Operation interrupted",
+            io::ErrorKind::Other => "IO Error",
+            // eugh.
+            _ => "Unknown IO Error (file a bug against rust-incidents)",
         }
     }
 
     fn description(&self) -> Option<&str> {
-        Some(self.desc)
+        Some(self.description())
     }
 
     fn detail(&self) -> Option<String> {
@@ -790,12 +789,12 @@ impl Error for io::IoError {
 //// Error Tools ////////////////////////////////////////////////////////
 
 /// Formats tracebacks.
-pub struct TraceFormatter<W: Writer> {
+pub struct TraceFormatter<W: Write> {
     writer: W,
 }
 
 /// The trace formatter can be used to render tracebacks.
-impl<W: Writer> TraceFormatter<W> {
+impl<W: Write> TraceFormatter<W> {
 
     /// Constructs a new trace formatter.
     pub fn new(writer: W) -> TraceFormatter<W> {
@@ -804,7 +803,7 @@ impl<W: Writer> TraceFormatter<W> {
         }
     }
 
-    fn format_divider(&mut self) -> io::IoResult<()> {
+    fn format_divider(&mut self) -> io::Result<()> {
         try!(writeln!(&mut self.writer, ""));
         try!(writeln!(&mut self.writer, "The above error resulted in another:"));
         try!(writeln!(&mut self.writer, ""));
@@ -817,7 +816,7 @@ impl<W: Writer> TraceFormatter<W> {
     /// not available.  In that case you can still get some debug information
     /// from the errors alone.  This will try to find as much information as
     /// possible and print them out in a similar format.
-    pub fn format_fallback_trace(&mut self, err: &Error) -> io::IoResult<()> {
+    pub fn format_fallback_trace(&mut self, err: &Error) -> io::Result<()> {
         let mut causes = vec![];
         let mut ptr = Some(err);
 
@@ -838,7 +837,7 @@ impl<W: Writer> TraceFormatter<W> {
     }
 
     /// Formats all traces of the incident.
-    pub fn format_traces(&mut self, i: &Traceback) -> io::IoResult<()> {
+    pub fn format_traces(&mut self, i: &Traceback) -> io::Result<()> {
         let mut traces = vec![];
         let mut ptr = Some(i.frame());
 
@@ -863,7 +862,7 @@ impl<W: Writer> TraceFormatter<W> {
     }
 
     /// Formats a single trace.
-    fn format_trace(&mut self, err: &Error, trace: &[&Frame]) -> io::IoResult<()> {
+    fn format_trace(&mut self, err: &Error, trace: &[&Frame]) -> io::Result<()> {
         try!(writeln!(&mut self.writer, "Traceback (most recent cause last):"));
         for cause in trace.iter() {
             try!(self.format_frame(*cause));
@@ -873,7 +872,7 @@ impl<W: Writer> TraceFormatter<W> {
     }
 
     /// Formats a single frame.
-    pub fn format_frame(&mut self, frm: &Frame) -> io::IoResult<()> {
+    pub fn format_frame(&mut self, frm: &Frame) -> io::Result<()> {
         match frm.location() {
             Some(loc) => {
                 try!(writeln!(&mut self.writer, "  File \"{}\", line {}",
@@ -892,7 +891,7 @@ impl<W: Writer> TraceFormatter<W> {
     }
 
     /// Formats the cause of an error.
-    pub fn format_cause(&mut self, err: &Error) -> io::IoResult<()> {
+    pub fn format_cause(&mut self, err: &Error) -> io::Result<()> {
         try!(write!(&mut self.writer, "{}", err.name()));
         match err.description() {
             Some(desc) => try!(write!(&mut self.writer, ": {}", desc)),
